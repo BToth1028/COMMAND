@@ -1,0 +1,190 @@
+# ============================================================================
+# EXAMPLE BOOTSTRAP — FormBuilder project, session ending 2026-04-02 at 21:45
+# ----------------------------------------------------------------------------
+# Demonstrates new content rules:
+#   - Decisions are session-scoped (only THIS session's choices appear).
+#   - Tasks include all statuses (ACTIVE, BLOCKED, DEFERRED, DONE) — DONE
+#     tasks document what this session completed but will NOT carry forward.
+#   - Storage uses project-relative path: {project_root}/02_working/chat-sessions/bootstrap/.
+# ============================================================================
+
+project:
+  name: "FormBuilder"
+  summary: |
+    FormBuilder is a VBA-based tool for generating Access forms with
+    deterministic theming, layout, and control placement. Currently in
+    the design phase (04-Design). The theme engine is functional and
+    under active debugging. Next milestone is completing control-level
+    theme overrides (T-002) so the theme fallback bug (T-004) can be
+    unblocked.
+  scope: "VBA form generation, theme engine, control layout, Access UI automation."
+  non_scope: "Database schema design, data migration, end-user training materials."
+
+session:
+  id: "260402-2145"
+  timezone: "America/New_York"
+  started: "2026-04-02T19:00:00-04:00"
+  ended: "2026-04-02T21:45:00-04:00"
+  session_summary: |
+    Completed T-001 (modThemeDebug centralized resolution refactor — 14
+    inline lookups replaced). Settled D-001 architecture for control-level
+    theme overrides (Tag property as YAML fragment). Discovered T-004 null
+    control reference bug (BLOCKED on T-002). Deferred T-003 gradient fill
+    pending operator decision on minimum supported Access version.
+
+tasks:
+  - id: "T-001"
+    title: "Refactor modThemeDebug to use centralized color resolution"
+    status: "DONE"
+    session_origin: "260401-1430"
+    session_completed: "260402-2145"
+    priority: "HIGH"
+    description: |
+      Replace all inline RGB lookups in modThemeDebug.bas with calls to
+      the centralized ResolveThemeColor function so theme changes
+      propagate consistently across all debug output.
+    blockers: null
+    deferred_reason: null
+    cancelled_reason: null
+    notes: "14 inline lookups replaced. All debug output now theme-consistent."
+
+  - id: "T-002"
+    title: "Implement control-level theme overrides"
+    status: "ACTIVE"
+    session_origin: "260401-1430"
+    session_completed: null
+    priority: "HIGH"
+    description: |
+      Allow individual controls to override the form-level theme for
+      specific properties (forecolor, backcolor, border). Override stored
+      in the control's Tag property as a YAML fragment. ResolveThemeColor
+      checks Tag before falling back to form-level theme.
+    blockers: null
+    deferred_reason: null
+    cancelled_reason: null
+    notes: "Design settled this session in D-001. Implementation not yet started."
+
+  - id: "T-003"
+    title: "Add gradient fill support to theme engine"
+    status: "DEFERRED"
+    session_origin: "260402-2145"
+    session_completed: null
+    priority: "MEDIUM"
+    description: |
+      Access 2016+ supports gradient fills on form sections. Theme engine
+      currently handles solid colors only. Adding gradient support requires
+      detecting Access version at runtime.
+    blockers: null
+    deferred_reason: |
+      Operator must confirm minimum supported Access version. If Access
+      2013 must be supported, gradients are out of scope entirely.
+      Reactivate when operator provides version floor.
+    cancelled_reason: null
+    notes: null
+
+  - id: "T-004"
+    title: "Fix theme fallback edge case for null control references"
+    status: "BLOCKED"
+    session_origin: "260402-2145"
+    session_completed: null
+    priority: "HIGH"
+    description: |
+      When a control reference is Nothing (deleted control, orphaned
+      reference), ResolveThemeColor throws Error 91. Need a guard clause
+      at the top of the function. Straightforward fix but blocked on
+      T-002 since the override logic will change the function signature.
+    blockers: "Depends on T-002 (control-level override changes function signature)."
+    deferred_reason: null
+    cancelled_reason: null
+    notes: null
+
+# Decisions are session-scoped. Only choices made during 260402-2145 appear
+# here. D-001 and D-002 from 260401-1430 live in that session's bootstrap
+# and are NOT carried forward — only OPEN tasks/issues propagate.
+decisions:
+  - id: "D-001"
+    session_origin: "260402-2145"
+    domain: "architecture"
+    outcome: "Store control-level theme overrides in the control's Tag property as YAML fragments."
+    rationale: |
+      Access controls have a Tag property (string, unlimited length)
+      unused by the system. Alternatives: (1) a separate lookup table
+      mapping control names to overrides — rejected because rename of a
+      control orphans the override; (2) custom Properties collection
+      entries — rejected because custom properties don't survive
+      copy-paste between forms. The Tag property travels with the control
+      through all operations.
+    supersedes: null
+
+  - id: "D-002"
+    session_origin: "260402-2145"
+    domain: "scope"
+    outcome: "Defer gradient fill support (T-003) until operator declares Access version floor."
+    rationale: |
+      Gradient fills require Access 2016+ runtime detection. If the
+      project must support Access 2013, the entire feature is out of
+      scope, and any partial implementation is wasted. Operator confirmation
+      on version floor is cheaper than building speculative compatibility.
+    supersedes: null
+
+environment:
+  tools:
+    - "Microsoft Access 2021 (VBA 7.1)"
+    - "Cursor IDE (for YAML/spec work)"
+    - "Git (version control)"
+  key_paths:
+    - "{project_root}/04-Design/vba/modThemeDebug.bas"
+    - "{project_root}/04-Design/vba/modThemeEngine.bas"
+    - "{project_root}/02_working/chat-sessions/bootstrap/"
+  schema_state: null
+  dependencies: null
+  notes: |
+    project_root = c:/code/_staging/FormBuilder for this session. VBA
+    development happens in Access; source files exported to workspace
+    for version control.
+
+context_file_audit:
+  - filename: "{project_root}/04-Design/vba/modThemeDebug.bas"
+    status: "CURRENT"
+    note: null
+  - filename: "{project_root}/04-Design/vba/modThemeEngine.bas"
+    status: "NEEDS_UPDATE"
+    note: "ResolveThemeColor signature will change when T-002 is implemented."
+
+issues:
+  - id: "I-001"
+    summary: |
+      VBA editor occasionally loses breakpoints after Access crash.
+      Not reproducible on demand. Workaround: export/reimport module.
+    severity: "LOW"
+    session_origin: "260401-1430"
+    resolution: null
+
+next_session_kickoff:
+  bootstrap_file_absolute: "c:/code/_staging/FormBuilder/02_working/chat-sessions/bootstrap/FormBuilder_260402-2145.yaml"
+  project_root: "c:/code/_staging/FormBuilder"
+  project_name: "FormBuilder"
+  path_1_operator_template: |
+    @c:/code/_staging/FormBuilder/02_working/chat-sessions/bootstrap/FormBuilder_260402-2145.yaml
+    Execute bootstrap-start Path 1 only; run ingest→audit→init without asking for extra documentation unless a HALT gate in do_not_request_from_operator_unless triggers.
+  frozen_intent:
+    - "Continue theme engine work; T-002 ACTIVE, T-004 BLOCKED on T-002."
+    - "Do not expand scope to gradient fills until Access version floor is decided (T-003 deferred)."
+  truth_anchors:
+    command_md: "C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md"
+    schema_yaml: "C:/Users/rtoth/.cursor/commands/bootstrap/schema.yaml"
+    validate_script: "C:/Users/rtoth/.cursor/commands/bootstrap/validate_bootstrap.py"
+    extra:
+      - "C:/Users/rtoth/.cursor/commands/bootstrap/bootstrap-start.yaml"
+  read_first:
+    - "C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md"
+    - "c:/code/_staging/FormBuilder/02_working/chat-sessions/bootstrap/FormBuilder_260402-2145.yaml"
+    - "{project_root}/04-Design/vba/modThemeEngine.bas"
+  assumptions_next_session_must_hold:
+    - "project_root remains c:/code/_staging/FormBuilder"
+  known_gaps:
+    - "T-002 not started; T-004 blocked on T-002."
+    - "modThemeEngine.bas flagged NEEDS_UPDATE for signature change."
+  do_not_request_from_operator_unless:
+    - "prior_bootstrap_path missing or unreadable"
+    - "bootstrap-start HALT from ingest, audit, or init"

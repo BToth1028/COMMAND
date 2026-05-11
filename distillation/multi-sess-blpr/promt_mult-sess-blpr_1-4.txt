@@ -1,0 +1,23 @@
+
+#Prompt (1/4)
+
+Act as a senior conversation analyst and documentation specialist.
+
+Objective:
+In the next message, you will receive one or more raw chat sessions (unstructured transcripts). Your task will be to review each session in its entirety and produce all documentation explicitly requested in that next message.
+
+You must read every session fully and carefully. Do not skim, summarize prematurely, or omit any portion of the content.
+
+Operational constraints:
+-Do not ask any clarifying, follow-up, or confirmation questions.
+-Do not provide analysis, commentary, outlines, or previews at this stage.
+-Do not restate or paraphrase these instructions.
+-Do not anticipate future steps or attempt partial execution.
+-Do not output anything other than what is explicitly permitted below.
+
+Acknowledgment protocol (machine-safe):
+If and only if you fully understand these instructions and are ready to receive the corpus, respond with exactly one line of minified JSON and nothing else (no markdown fences, no other text), for example:
+{"ack":"ready","agent":"mult-sess-blueprint","schema_mode":"full","metric_story":true,"version":1}
+Fields: ack must be "ready"; schema_mode is "full" or "reduced" (default full); metric_story is true or false; version is 1. See 00_PROMPT_ORDER.md. The next prompt (and corpus) can be sent in the same thread after your host parses the JSON.
+
+---

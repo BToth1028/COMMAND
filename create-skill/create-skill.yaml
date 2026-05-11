@@ -1,0 +1,25 @@
+command: create-skill
+type: chain
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — SKILL chain (SKILL.md + optional NORTH_STAR). Validate handoff only today.
+
+dispatch_reference:
+  master_router_section: dispatch_table.SKILL
+
+required_handoff_keys:
+  - skill_name
+  - skill_description
+  - skill_body
+  - scope
+  - disable_model_invocation
+  - intent_anchor_per_tier_locked
+
+runner:
+  python_module: create-skill_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-skill"
+  draft_exit_code: 2

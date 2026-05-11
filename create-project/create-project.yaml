@@ -1,0 +1,51 @@
+command: create-project
+type: chain
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — Will execute master-router PROJECT dispatch (multi-step chain:
+  bootstrap-start, project-plan-builder milestone plan, optional NORTH_STAR,
+  optional create-rule). Today: validate frozen handoff only; no filesystem writes.
+
+scope:
+  - Parse JSON handoff; require request_type PROJECT
+  - Verify required_inputs_frozen keys per master-router dispatch_table.PROJECT
+  - Emit DRAFT_ONLY JSON (exit 2) until chain orchestration is implemented
+
+non_scope:
+  - Single-file native writes (use create-document / create-code)
+  - Router classification or tier negotiation
+
+authority:
+  canonical:
+    router_contract: "C:\Users\rtoth\.cursor\commands\\master-router\\COMMAND.md"
+  on_conflict: router_contract_wins
+
+dispatch_reference:
+  master_router_section: dispatch_table.PROJECT
+  child_stub_file: create-project.yaml
+  upstream_canonicals:
+    - "C:\Users\rtoth\.cursor\commands\bootstrap\\bootstrap-start.yaml"
+    - "C:\Users\rtoth\.cursor\commands\\planning\\project-plan-builder.yaml"
+
+required_handoff_keys:
+  - project_name
+  - project_root_absolute
+  - project_mission
+  - first_milestone_minimum_fields
+  - intent_anchor_per_tier_locked
+
+optional_handoff_keys:
+  - status_enum_override
+  - initial_rule_content
+  - initial_subagent_content
+  - parent_intent_reference
+
+runner:
+  python_module: create-project_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-project"
+  draft_exit_code: 2
+  draft_stdout_status: DRAFT_ONLY

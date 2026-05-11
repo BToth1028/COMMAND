@@ -1,0 +1,945 @@
+---
+name: code-audit
+description: >-
+  Single-domain code auditor. Runs an 8-layer code audit framework
+  (Correctness, Security, Performance, Maintainability, Testability, API
+  Design, Concurrency, Structural Quality) over source files, modules,
+  packages, PR diffs, or whole repos. Also hosts the subagent two-stage
+  gate methodology for subagent-driven development. Invoke as
+  @code-audit [<scope_type>] [<mode>]. Audits only — never modifies code.
+  The deliverable is an audit report plus a proposal-only remediation plan;
+  execution is handed off to a separate session.
+
+meta:
+  module_type: reference
+  loaded_by: "@audit-engine"
+  canonical_path: 'C:\Users\rtoth\.cursor\commands\audit-engine\references\audit_code.yaml'
+  preflight_check: PF-3
+  engine_canonical: 'C:\Users\rtoth\.cursor\commands\audit-engine\COMMAND.md'
+
+owns:
+  - "8 code audit layers (L1-COR through L8-STR)"
+  - "50+ code-specific check IDs and their fail conditions"
+  - "scope_type enum (FILE, FILE_SET, MODULE, PACKAGE, PR_DIFF, COMMIT_RANGE, REPO)"
+  - "language enum (LANG_PY, LANG_JS, LANG_TS, LANG_RS, LANG_GO, LANG_JAVA, LANG_KT, LANG_RB, LANG_CS, LANG_CPP, LANG_C, LANG_SWIFT, LANG_SCALA, LANG_EX, LANG_CLJ, LANG_LUA, LANG_SH, LANG_PS1, MIXED)"
+  - "code-specific tier overrides (security, correctness, test coverage)"
+  - "code-specific edge cases"
+  - "subagent two-stage gate methodology for subagent-driven development"
+
+does_not_own:
+  - { item: "audit-mode taxonomy",                                           owner: "@audit-engine" }
+  - { item: "Mode 5 iterative loop (M5-1 through M5-10)",                   owner: "@audit-engine" }
+  - { item: "halt protocols",                                                owner: "@audit-engine" }
+  - { item: "audit_report / finding / iteration / remediation_plan schemas", owner: "@audit-engine" }
+  - { item: "anti-drift safeguards",                                         owner: "@audit-engine" }
+  - { item: "content-type detection or mixed-content dispatch",              owner: "@audit-engine" }
+
+engine_import_note: >
+  This module is embedded within @audit-engine. The engine's COMMAND.md is the
+  source of truth for loop semantics, schemas, and halt protocols and MUST be
+  read before producing any audit report. This module is loaded at PF-3 pre-flight.
+  Step M5-8 is followed by Step M5-8.5 (Solution Determinism Gate) per
+  @audit-engine §"Solution Determinism Gate". Plan items emitted from this
+  module's findings inherit the gate; this module does not redefine it.
+
+existing_skill_note: >
+  This module does NOT alter the existing code-review---iterative skill. That
+  skill remains the home for non-audit review lanes (requesting review, receiving
+  review, PR babysit). The audit-flavored content from that skill — iterative
+  full-tree review and subagent two-stage gates — is captured here. Other lanes
+  remain in that skill.
+
+distinction_from_code_review_iterative:
+  note: "@code-audit answers 'how good is this code structurally?' with a scored, layered report. code-review---iterative answers 'how do I run review across this work?' with lane-specific procedures."
+  lanes:
+    - { lane: "Iterative full-tree review (zero-findings)",   owned_here: true,  note: "Implemented as Mode 5 over 8 layers" }
+    - { lane: "Subagent two-stage gates per task",            owned_here: true,  note: "See subagent_two_stage_methodology section" }
+    - { lane: "Requesting code review (dispatch)",            owned_here: false, owner: "code-review---iterative (Lane B)" }
+    - { lane: "Receiving review feedback",                    owned_here: false, owner: "code-review---iterative (Lane C)" }
+    - { lane: "PR merge-ready babysit",                       owned_here: false, owner: "code-review---iterative (Lane E)" }
+
+invocation:
+  syntax: "@code-audit [<scope_type>] [<mode>]"
+  scope_type:
+    optional: true
+    values: [file, file_set, module, package, pr_diff, commit_range, repo, subagent_two_stage]
+    inference_rules:
+      single_source_file: file
+      folder: package
+      two_shas: commit_range
+      pr_number_or_url: pr_diff
+      per_task_implementer_subagent_context: subagent_two_stage
+      ambiguous: "ASK user — do not guess"
+  mode:
+    optional: true
+    values: [full, targeted, post_mortem, diff, iterative]
+    default: iterative
+    default_note: >
+      Iterative is the unconditional default (inherited from @audit-engine).
+      iterative wraps full, post_mortem, or diff via the engine's Mode 5 loop.
+  examples:
+    - { cmd: "@code-audit",                      note: "auto-infer scope; iterative (Mode 5) audit; default mode" }
+    - { cmd: "@code-audit pr_diff iterative",    note: "explicit iterative override on a PR diff" }
+    - { cmd: "@code-audit repo full",            note: "full (single-pass) audit over an entire repository" }
+    - { cmd: "@code-audit module diff",          note: "Mode 5 diff between two versions of a module" }
+    - { cmd: "@code-audit subagent_two_stage",   note: "invoke the per-task two-stage gate methodology" }
+  loaded_by_engine_for: "code partition of code and mixed-content runs"
+
+mission: >
+  Systematically evaluate source code for correctness, safety, performance,
+  maintainability, testability, API soundness, concurrency safety, and structural
+  quality — surfacing every failure mode BEFORE it reaches production. Additionally,
+  host the per-task two-stage review gate methodology used by subagent-driven
+  development.
+  This module audits code. It does not write or modify code.
+  Findings that require code changes route to user action or to a separate
+  implementation session. Outputs are audit reports and finding queues — not patches.
+
+authority_model:
+  canonical:
+    - "the source code under audit (read-only access required)"
+    - "for PR/diff scope: the base and head SHAs"
+    - "for subagent_two_stage scope: the implementer subagent's task spec AND the work product (code) it produced"
+    - "the user's stated intent for the code (what is it supposed to do?)"
+    - "the repository's existing test suite (used as evidence for L5-TST)"
+  derived:
+    - "audit report"
+    - "layer scores"
+    - "tier rating"
+    - "finding classifications"
+    - "routing queues"
+    - "remediation plan items"
+  rule: >
+    Never modify code under audit. Never run code. Never apply a proposed fix.
+    Static analysis only — augmented by reading existing test output if provided.
+
+scope:
+  in_scope:
+    - "running the 8-layer code audit framework"
+    - "scoring each layer"
+    - "producing a tier rating"
+    - "identifying CRITICAL security and correctness findings"
+    - "routing recommended changes to a follow-up session"
+    - "per-task subagent two-stage review gating"
+  never:
+    - "rewrite code"
+    - "apply fixes"
+    - "add tests"
+    - "run code (no execution-based assessment unless test output is supplied as input)"
+    - "replace human security review for high-risk changes (escalate instead)"
+    - "operate without a defined scope"
+    - "dispatch implementer subagents (that is the caller's job)"
+
+step_0:
+  title: "Pre-Audit Setup"
+  preflight_note: >
+    Pre-flight is engine-owned. Before STEP 0 runs, the engine's pre-flight
+    verification (PF-1 through PF-6) MUST already have passed. STEP 0 does NOT
+    duplicate pre-flight; it begins after the engine confirms all canonical files
+    and the artifact under audit are loaded. Any pre-flight failure halts with
+    halt_reason: PRE_FLIGHT_FAILURE (see @audit-engine).
+  steps:
+    - step: 1
+      action: "Confirm scope is loaded and readable."
+      on_no_source: "HALT. Request source."
+      on_pr_diff_or_commit_range: "Confirm both SHAs exist and are reachable."
+      on_repo_or_package: "Confirm root path exists and is readable."
+      on_subagent_two_stage: "Confirm BOTH the task spec AND the implementer's work product are loaded."
+    - step: 2
+      action: "Generate audit_id using format CDA-YYYYMMDD-HHMMSS from current timestamp."
+    - step: 3
+      action: "Identify language(s)."
+      on_single_language: "Record one language enum value."
+      on_multi_language: "Record list; some checks become per-language."
+      on_unknown_extension: "ASK. Do not guess language."
+    - step: 4
+      action: "Identify scope_type and record."
+      scope_type_definitions:
+        file: "single source file"
+        file_set: "enumerated list of files"
+        module: "a folder treated as a single import unit"
+        package:
+          description: "a folder with build/install metadata"
+          recognized_by_manifest_files:
+            - package.json
+            - Cargo.toml
+            - pyproject.toml
+            - setup.py
+            - pom.xml
+            - build.gradle
+            - build.gradle.kts
+            - Gemfile
+            - go.mod
+            - mix.exs
+            - composer.json
+            - pubspec.yaml
+            - "*.csproj"
+            - "*.fsproj"
+          other_root_manifest: "ASK"
+        pr_diff: "a set of changes between two SHAs of the same repo, with PR number/URL recorded"
+        commit_range: "a base..head SHA range"
+        repo: "an entire repository"
+        subagent_two_stage: "a per-task subagent context (spec + work product)"
+    - step: 5
+      action: "Confirm the code's stated intent. Record as stated_intent."
+      on_pr_diff: "Extract intent from PR description; if missing, ASK."
+      on_repo_or_package: "Extract from README or package metadata; if missing, ASK."
+      on_subagent_two_stage: "The task spec IS the intent (verbatim)."
+    - step: 6
+      action: "Confirm session mode (full / targeted / post_mortem / diff / iterative)."
+    - step: 7
+      action: "Viability gate."
+      condition: "Scope contains no readable source files."
+      on_fail: "HALT with finding NOT_CODE. Do not proceed to Layer 1."
+    - step: 8
+      action: "Test-output capture (optional)."
+      if_provided: "Capture test results (pass/fail counts, coverage report, mutation testing output) as evidence for L5-TST."
+      if_not_provided: "L5-TST checks operate on test files alone, not on test execution."
+
+vocabulary_note: >
+  Every term used as a severity-bias trigger or scope qualifier —
+  primary_execution_path, downstream_system, primary_use_case, expected_load,
+  long_form_rewriting, single_threaded_synchronous, implicit_knowledge,
+  task_complexity, non_blank_line, junk_drawer, stricter_cap, build_artifact —
+  resolves to its closed definition in @audit-engine §Deterministic vocabulary.
+  This module does NOT redefine these terms locally.
+
+layers:
+
+  - id: L1-COR
+    name: Correctness
+    question: "Does the code do what its specification (name, signature, comments, docstrings, stated intent) claims it does?"
+    checks:
+      - id: "1.1"
+        name: "Signature / name match"
+        fails_when: "Function/class name or signature implies behavior the body does not perform (e.g. is_valid() returning a value but never validating; parse_int(s) accepting any object)."
+      - id: "1.2"
+        name: "Docstring / comment alignment"
+        fails_when: "A docstring or comment describes behavior the code does not implement, or the code does something the docstring/comment does not mention."
+      - id: "1.3"
+        name: "Off-by-one / boundary errors"
+        fails_when: "Loop bounds, slice indices, or comparison operators that produce wrong results at boundaries (≤ vs <, len() vs len()-1, inclusive vs exclusive ranges)."
+      - id: "1.4"
+        name: "Null / undefined handling"
+        fails_when: "Code dereferences/uses values that may be null/undefined without explicit handling (no guard, no Option/Result, no if x: check)."
+      - id: "1.5"
+        name: "Side effects vs purity claims"
+        fails_when: "Code documented as pure/read-only that performs I/O, mutation, or state change (or vice versa)."
+      - id: "1.6"
+        name: "Type-coercion correctness"
+        fails_when: "Implicit type coercion that produces wrong results (string-vs-number comparison in JS, integer-overflow truncation, float equality without epsilon)."
+      - id: "1.7"
+        name: "Logic dead-end"
+        fails_when: "Code paths that cannot be reached by any input, OR conditional branches whose conditions are tautological/contradictory (always-true / always-false IFs that mask bugs)."
+    scoring: "score = (checks_passed / 7) × 100. Each check weighted equally."
+
+  - id: L2-SEC
+    name: Security
+    question: "Are there exploitable vulnerabilities or unsafe patterns?"
+    checks:
+      - id: "2.1"
+        name: "Injection surfaces"
+        fails_when: "User-controlled input flows into SQL, shell, OS exec, eval, deserialization, template render, or LLM prompt without sanitization or parameterization."
+      - id: "2.2"
+        name: "Authentication / authorization gaps"
+        fails_when: "Endpoints, RPC handlers, or sensitive functions without authn/authz check; privilege checks performed AFTER side effects."
+      - id: "2.3"
+        name: "Secret exposure"
+        fails_when: "Hardcoded credentials, API keys, tokens, private keys; secrets logged or returned in error messages; .env content leaked into VCS."
+      - id: "2.4"
+        name: "Cryptography misuse"
+        fails_when: "Custom crypto; ECB mode; static IV/nonce; weak hashes (MD5/SHA1) for security; missing constant-time comparison for secrets."
+      - id: "2.5"
+        name: "Input validation"
+        fails_when: "External inputs accepted without bounds, type, format, or schema validation; deserialization of untrusted data into rich types."
+      - id: "2.6"
+        name: "TOCTOU / race-condition vulnerability"
+        fails_when: "Time-of-check vs time-of-use gaps that an attacker can exploit (file existence check then open; permission check then operation)."
+      - id: "2.7"
+        name: "Resource exhaustion"
+        fails_when: "Unbounded loops, allocations, or recursions on user-controlled input; missing rate limit, size limit, or timeout on external-facing surfaces."
+      - id: "2.8"
+        name: "Unsafe defaults"
+        fails_when: "Default-permissive permissions, default-disabled TLS verification, default-on debug/dev features in production code paths."
+    scoring: "score = (checks_passed / 8) × 100. Each check weighted equally."
+
+  - id: L3-PRF
+    name: Performance
+    question: "Is the code's resource use proportionate to its purpose?"
+    severity_note: >
+      Without runtime profiling, this layer flags patterns known to underperform —
+      not measured slowness. Severity is assigned deterministically per
+      @audit-engine §Deterministic vocabulary:
+      ADVISORY by default.
+      MAJOR when the pattern lies on the primary_execution_path.
+      CRITICAL only when ALL THREE hold: (1) on primary_execution_path, AND
+      (2) artifact cites at least one expected_load threshold, AND
+      (3) pattern would breach that threshold.
+      If artifact does not cite an expected_load threshold, severity caps at MAJOR.
+    checks:
+      - id: "3.1"
+        name: "Algorithmic complexity"
+        fails_when: "Use of O(n²) or worse where O(n log n) or O(n) is straightforward; nested loops over the same collection that could be a hash join."
+      - id: "3.2"
+        name: "N+1 queries / loops over remote calls"
+        fails_when: "Calls to DB / RPC / HTTP / file I/O inside a loop that could be batched."
+      - id: "3.3"
+        name: "Allocation hot paths"
+        fails_when: "Repeated allocations in tight loops (string concat in a loop, fresh collection per iteration, boxing of primitives in hot paths)."
+      - id: "3.4"
+        name: "Unbounded memory"
+        fails_when: "Reading entire large file/stream into memory when streaming would suffice; collections that grow without bound."
+      - id: "3.5"
+        name: "Synchronous I/O on hot paths"
+        fails_when: "Blocking I/O on the request-serving thread in async runtimes; missing async/await where the platform supports it."
+      - id: "3.6"
+        name: "Cache absence or invalidation"
+        fails_when: "Repeated identical computations / fetches with no caching layer; or caches with no eviction strategy and no TTL."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L4-MNT
+    name: Maintainability
+    question: "Can a competent engineer understand, modify, and extend this code?"
+    checks:
+      - id: "4.1"
+        name: "Cyclomatic complexity"
+        rule: >
+          Function/method cyclomatic complexity > 15 (warning / PARTIAL) or > 25 (FAIL);
+          measured by a per-language closed tool (see cyclomatic_complexity_tools).
+          If no tool result is supplied, this check is SKIPPED with note:
+          "Cyclomatic complexity not measured — supply tool output for next audit."
+          Subjective phrases ("feels complex", "looks gnarly", "seems hard") are
+          FORBIDDEN; this check ONLY consumes deterministic tool output.
+      - id: "4.2"
+        name: "Function length"
+        fails_when: "Function/method body > 100 LOC (warning) or > 200 LOC (FAIL); excludes data definitions and tests."
+      - id: "4.3"
+        name: "Naming clarity"
+        rule: "FAIL if ANY ONE of the four closed criteria (a)–(d) below holds."
+        closed_criteria:
+          a_banned_short_token:
+            rule: >
+              Identifier matches the closed banned-token regex AND the symbol is at
+              module-level or class-level scope (not a loop counter, not a short-lived
+              local inside a function body).
+            regex: "^(x|y|z|i|j|k|tmp|temp|data|val|var|res|ret|obj|item|thing|stuff|info|misc)\\d*$"
+            note: "Loop counters i, j, k inside a for/while body are exempt."
+          b_banned_verb_stem_function_name:
+            rule: >
+              Identifier is used as a function/method name AND its stem is in the
+              closed banned verb-stem list. Suffixed and prefixed variants count
+              (e.g. do_thing_v2, process_item, handler).
+            closed_list: [do_thing, process, handle, manage, run, execute, perform, work, go, proc]
+          c_misleading_prefix:
+            rule: >
+              Identifier prefix promises a behavior the body does not deliver.
+              Closed prefix-to-behavior map below; any deviation is a FAIL.
+            prefix_behavior_map:
+              "validate_*": "MUST return a bool, return a Result, or raise on invalid input."
+              "is_*":       "MUST return a bool."
+              "has_*":      "MUST return a bool."
+              "can_*":      "MUST return a bool."
+              "get_*":      "MUST be side-effect-free (no I/O, no mutation)."
+              "set_*":      "MUST mutate exactly the named property; nothing else."
+              "parse_*":    "MUST consume input and produce structured output (not merely validate)."
+          d_unregistered_caps_run:
+            rule: >
+              Identifier contains ≥ 2 consecutive ALL-CAPS tokens (each token length ≥ 2)
+              AND those tokens are NOT a registered acronym in a project glossary cited by
+              stated_intent. Examples that FAIL without a glossary entry: XML_HTTP_REQ,
+              URLDB_LOAD. Examples that PASS: HTTP_GET (HTTP/GET both well-known), JSON_PATH.
+      - id: "4.4"
+        name: "Dead code"
+        fails_when: "Unreachable functions, commented-out blocks left in source, unused imports/variables, vestigial parameters."
+      - id: "4.5"
+        name: "Magic numbers / strings"
+        fails_when: "Numeric or string literals embedded in logic without naming or rationale, when reuse or future change is plausible."
+      - id: "4.6"
+        name: "Coupling / responsibility"
+        fails_when: "Single class/module mixes ≥ 3 unrelated responsibilities; cross-module reach-around (accessing obj._private from outside its owner)."
+      - id: "4.7"
+        name: "Comment quality"
+        fails_when: "Comments that paraphrase the code instead of explaining intent; absent comments where intent is non-obvious; outdated comments contradicting current behavior."
+    scoring: "score = (checks_passed / 7) × 100. Each check weighted equally."
+
+  cyclomatic_complexity_tools:
+    note: "L4.1 is deterministic. The auditor consumes tool output, never invents a complexity number."
+    per_language:
+      python:  "radon (cc -s)"
+      js_ts:   "eslint-plugin-complexity (or complexity-report)"
+      rust:    "cargo-geiger or rust-code-analysis"
+      go:      "gocyclo"
+      java_kt: "PMD or Checkstyle (CyclomaticComplexity rule)"
+      csharp:  "SonarAnalyzer.CSharp"
+      ruby:    "rubocop --only Metrics/CyclomaticComplexity"
+      c_cpp:   "lizard"
+    skipped_without_tool: >
+      If no tool result is supplied as audit input for the language(s) in scope,
+      L4.1 is SKIPPED with note "Cyclomatic complexity not measured — supply tool
+      output for next audit." Record in decision_trace.auditor_notes.
+
+  - id: L5-TST
+    name: Testability
+    question: "Is the code testable, and is it tested?"
+    checks:
+      - id: "5.1"
+        name: "Test presence"
+        fails_when: "Public function/class without an associated test (failure scope: per public surface, not per file)."
+      - id: "5.2"
+        name: "Edge-case coverage"
+        fails_when: "Tests cover only the happy path; missing tests for null/empty input, boundary values, malformed input, error paths, concurrency edges (where applicable)."
+      - id: "5.3"
+        name: "Test determinism"
+        fails_when: "Tests that depend on wall-clock time, random seeds without fixing them, network calls without mocking, file system without isolation."
+      - id: "5.4"
+        name: "Test isolation"
+        fails_when: "Tests that share mutable state, depend on execution order, or leave artifacts that affect later tests."
+      - id: "5.5"
+        name: "Mock/stub appropriateness"
+        fails_when: "Tests that mock the code under test (testing nothing), mock so heavily that real-world behavior is invisible, or mock standard library calls without justification."
+      - id: "5.6"
+        name: "Coverage signal"
+        rule: >
+          If a coverage report was supplied: line coverage < 60% (FAIL) or
+          60–80% (PARTIAL); branch coverage missing entirely (FAIL when language
+          supports it). If no coverage report: SKIPPED with note.
+      - id: "5.7"
+        name: "Hard-to-test design"
+        fails_when: "Code whose structure makes testing implausible without major refactor: hidden static state, unbounded constructor work, unmockable dependencies hardcoded inside business logic."
+    scoring: "score = (checks_passed / 7) × 100. Each check weighted equally."
+
+  - id: L6-API
+    name: "API Design"
+    question: "Are the public contracts of this code sound?"
+    checks:
+      - id: "6.1"
+        name: "Public surface clarity"
+        fails_when: "Public functions/types whose role in the public API is undocumented; 'public by accident' symbols (forgotten to mark private)."
+      - id: "6.2"
+        name: "Parameter design"
+        fails_when: "Functions with long, positional parameter lists where named/keyword args are supported by the language; boolean flag parameters that fork behavior (replace with two functions or an enum)."
+      - id: "6.3"
+        name: "Return-type clarity"
+        fails_when: "Functions that return polymorphic results (sometimes a value, sometimes null, sometimes a list, sometimes an exception) without a unified Result/Either type or documented contract."
+      - id: "6.4"
+        name: "Error contracts"
+        fails_when: "Functions that document a happy-path return but don't document failure modes (which errors? which exceptions? which sentinels?)."
+      - id: "6.5"
+        name: "Backward compatibility (diff/PR scope only)"
+        fails_when: "Changes that break a public signature, behavior, or schema without a documented deprecation path, version bump, or migration note."
+      - id: "6.6"
+        name: "Version pinning"
+        fails_when: "Public APIs that depend on internal/private symbols of dependencies, or pin versions to a narrow range without rationale."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L7-CNC
+    name: Concurrency
+    question: "Is concurrent code safe and correct?"
+    skip_rule:
+      description: >
+        ALL L7 checks are SKIPPED and the layer is excluded from the overall average
+        (renormalize weights) IFF the entire scope qualifies as single_threaded_synchronous
+        per @audit-engine §Deterministic vocabulary — zero occurrences of the
+        language-specific concurrency keywords listed below.
+      per_language_regex:
+        python:  "async|await|asyncio|threading|multiprocessing|concurrent\\.futures"
+        js_ts:   "async|await|Promise|Worker|setImmediate|setTimeout.*callback|queueMicrotask"
+        rust:    "async|await|tokio|rayon|std::thread|std::sync"
+        go:      "\\bgo\\s+\\w|goroutine|\\bchan\\s|\\bselect\\s*\\{"
+        java_kt: "CompletableFuture|ExecutorService|Thread|coroutine|suspend"
+        ruby:    "Thread|Fiber|Async|Concurrent::"
+        csharp:  "async|await|Task|Thread|Parallel"
+        c_cpp:   "pthread|std::thread|std::async|OpenMP|MPI"
+      on_zero_matches_in_all_files: "L7 entire layer = SKIPPED."
+      on_one_or_more_matches: "L7 runs as normal; SKIPPED forbidden."
+      match_scope_note: >
+        Match is performed file-by-file across the scope. Comments and string
+        literals are NOT excluded — concurrency keywords inside string literals
+        are conservative-included (they indicate intent / risk of templated
+        concurrency code). Regex matching is case-sensitive.
+      recording: >
+        decision_trace.auditor_notes:
+        "L7-CNC SKIPPED via single_threaded_synchronous keyword check
+        (zero matches across <N> files in scope)."
+    checks:
+      - id: "7.1"
+        name: "Shared mutable state"
+        fails_when: "Mutable state accessed from multiple threads/tasks without synchronization (no lock, no atomic, no actor/channel boundary)."
+      - id: "7.2"
+        name: "Lock ordering"
+        fails_when: "Multiple locks acquired in inconsistent orders across code paths (deadlock risk)."
+      - id: "7.3"
+        name: "Async correctness"
+        fails_when: "await skipped on async-returning calls; Promise/Future discarded; async function called synchronously in a way the language's runtime treats as fire-and-forget."
+      - id: "7.4"
+        name: "Cancellation handling"
+        fails_when: "Long-running async operations with no cancellation token / signal / timeout; resource cleanup on cancellation absent."
+      - id: "7.5"
+        name: "Race-condition surfaces"
+        fails_when: "Compound check-then-act on shared state without atomicity (e.g. read counter, increment, write — without atomic increment)."
+      - id: "7.6"
+        name: "Deadlock / livelock surfaces"
+        fails_when: "Patterns prone to circular waits (acquire A then B in one path, B then A in another); spin-loops without backoff or termination condition."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally. Layer excluded from average if fully SKIPPED."
+
+  - id: L8-STR
+    name: "Structural Quality"
+    question: "Is the codebase organized in a way that supports change over time?"
+    checks:
+      - id: "8.1"
+        name: "Module/package boundary clarity"
+        fails_when: "Modules with no clear single purpose; package contents that span unrelated concerns; 'util' or 'helpers' packages that have grown into junk drawers."
+      - id: "8.2"
+        name: "Dependency direction"
+        fails_when: "Layered architecture with cycles (A imports B, B imports A); domain logic depending on infrastructure layer instead of the reverse."
+      - id: "8.3"
+        name: "File organization"
+        fails_when: "Source files containing unrelated definitions; one file per public class/symbol violated without justification (where the language convention is one-per-file)."
+      - id: "8.4"
+        name: "Build / dependency hygiene"
+        fails_when: "Unpinned dependencies in build manifests; redundant dependencies; dev-only packages in production manifests; missing lockfile."
+      - id: "8.5"
+        name: "Configuration management"
+        fails_when: "Configuration values hardcoded where environment variables or config files are appropriate; environment-specific code paths chosen by hostname/timestamp instead of explicit config."
+      - id: "8.6"
+        name: "Repository hygiene"
+        fails_when: "Generated files committed to VCS (build outputs, IDE state, OS metadata); large binaries without LFS; license/README absence in shippable artifacts."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+layer_weights:
+  L1-COR: 0.20   # Highest — wrong is worse than slow
+  L2-SEC: 0.20   # Tied — exploitable is worse than wrong-but-safe
+  L3-PRF: 0.10
+  L4-MNT: 0.10
+  L5-TST: 0.15
+  L6-API: 0.10
+  L7-CNC: 0.10   # Renormalized away if all L7 SKIPPED
+  L8-STR: 0.05
+  # sum:  1.00
+
+tier_overrides:
+  stack_on_top_of: "universal overrides in @audit-engine"
+  conflict_resolution: "stricter cap wins"
+  overrides:
+    - condition: "Layer 1 (Correctness) has ≥ 2 FAILed checks"
+      cap: D
+      reason: "Multiple correctness FAILs indicate the code does not do what its surface claims. Trust is broken."
+      threshold_note: "Same check-level threshold semantics as audit_workflow. PARTIAL counts as 0.5 and does NOT count toward FAIL count."
+    - condition: "Layer 2 (Security) has any CRITICAL severity finding"
+      cap: D
+      reason: "Exploitable security vulnerabilities block deployment regardless of other layer scores."
+    - condition: "Layer 2 (Security) has ≥ 2 MAJOR-or-higher findings (not CRITICAL — those are caught above)"
+      cap: C
+      reason: "Multiple security MAJORs indicate systemic gaps in defensive posture."
+    - condition: "Layer 5 (Testability) score < 40 AND scope_type is one of {package, repo, pr_diff, commit_range}"
+      cap: C
+      reason: "Untested code at meaningful scope is not deployable. Single-file scope is exempted; experimentation is OK."
+    - condition: "Layer 7 (Concurrency) has any race-condition or deadlock CRITICAL finding (not SKIPPED)"
+      cap: D
+      reason: "Concurrency bugs are nondeterministic in production and effectively unfixable without a redesign."
+
+category_enum:
+  universal_values:
+    - AMBIGUITY
+    - BROKEN_REF
+    - STALE_REF
+    - UNREACHABLE
+    - UNHANDLED
+    - CONTRADICTION
+    - SCOPE_LEAK
+    - ASSUMPTION
+    - REDUNDANCY
+    - STRUCTURAL
+    - UNVERIFIABLE
+  code_extensions:
+    - { value: CORRECTNESS_BUG,    description: "semantic bug; code does not do what surface claims" }
+    - { value: SECURITY_VULN,      description: "exploitable vulnerability" }
+    - { value: PERFORMANCE_PATTERN, description: "known anti-pattern; not a measured slowness" }
+    - { value: RACE_CONDITION,     description: "concurrency bug" }
+    - { value: RESOURCE_LEAK,      description: "file handle, connection, memory not released" }
+    - { value: API_BREAKAGE,       description: "public-surface change without compatibility path" }
+    - { value: TEST_GAP,           description: "missing or inadequate test coverage" }
+    - { value: DEAD_CODE,          description: "unreachable or unused code" }
+    - { value: BUILD_HYGIENE,      description: "build/dependency config issue" }
+
+element_boundary_mode5:
+  description: "For code-audit Mode 5 granular passes (M5-3), use the first matching level — never blend levels."
+  levels:
+    1:
+      name: "Function / method"
+      rule: >
+        The smallest function or method definition, regardless of language.
+        Lambdas / closures / anonymous functions nested inside another function
+        are NOT separate elements; they are evaluated as part of their enclosing function.
+      per_language_keywords:
+        python:  "def | async def"
+        js_ts:   "function | const <name> = (...) => | class method"
+        rust:    "fn | async fn"
+        go:      "func"
+        java:    "method declaration inside class (any visibility)"
+        kotlin:  "fun | suspend fun"
+        csharp:  "method declaration inside class (any visibility)"
+        ruby:    "def"
+        swift:   "func"
+        scala:   "def"
+        elixir:  "def | defp"
+        clojure: "defn | defn-"
+        cpp_c:   "function definition (any non-class top-level or member)"
+        unknown: "ASK before scoring; do not invent a boundary"
+    2:
+      name: "Class / type"
+      rule: "When the class has no method body in scope (e.g. data class, struct, interface), the class itself is the element."
+    3:
+      name: "Module-level statements"
+      rule: "Top-level statements outside any function/class (imports, constants, side-effecting initialization). Treated as a single element per file."
+    4:
+      name: File
+      rule: "When none of levels 1–3 apply (rare; configuration-only files, or files with one large block)."
+  location_citation_format: >
+    finding.location MUST cite the element-boundary level used, e.g.
+    "Function (level 1): src/parser.py:parse_input @ L42-L88" or
+    "File (level 4): config/defaults.yaml @ L1-L20".
+
+edge_cases:
+  vendored_code:
+    condition: >
+      Source under audit includes a vendored / third-party copy. Closed path-marker
+      list (any path matching one or more substrings, case-sensitive):
+      /vendor/, /third_party/, /node_modules/, /external/, /deps/, /lib/external/.
+      No other paths qualify as vendored without an explicit user declaration in stated_intent.
+    action: >
+      SKIP all layers for vendored paths. Emit a single ADVISORY finding in L8-STR
+      noting the vendored directory and recommending it be excluded from CI lints if
+      not already. Record the matched paths in artifact_format.vendored_paths.
+
+  generated_code:
+    condition: >
+      Files declared as generated, recognized by ONE OR MORE of the following closed criteria:
+      (1) Filename matches *.gen.<ext>, *_pb2.py, *.pb.go, *.pb.cc, *.pb.h, *-generated.*.
+      (2) First 5 non-blank lines contain a header comment matching the closed regex:
+          /^\s*(#|\/\/|\/\*|<!--|--).*\b(@?generated|DO[\s_-]*NOT[\s_-]*EDIT|auto[\s_-]*generated|GENERATED FILE|machine[\s_-]*generated|This file was generated)\b/i
+      (3) File is a build artifact per @audit-engine §Deterministic vocabulary > build_artifact.
+    action: >
+      SKIP L4-MNT for generated files entirely. Other layers apply ONLY where the
+      generator itself is in scope. Note in decision_trace which files were treated as
+      generated and which of criteria (1)/(2)/(3) matched per file.
+      Record matched paths in artifact_format.generated_paths.
+
+  binary_files:
+    condition: "Non-text file (image, font, compiled binary, archive) appears in input."
+    action: >
+      Record an ADVISORY finding in L8-STR (repository hygiene) if the file is in
+      source-tree without LFS or justification. Do not attempt to audit binary contents.
+
+  pr_diff_with_deletions:
+    condition: "PR diff includes deleted files."
+    action: >
+      For each deleted file: run L6.5 (Backward compatibility) to check whether
+      deletion breaks public API. Other layers do NOT apply to deleted files.
+
+  empty_diff:
+    condition: "scope_type=pr_diff or commit_range, but base..head has no changes (or only whitespace/comment changes)."
+    action: "HALT at viability gate. Emit finding NOTHING_TO_AUDIT. Suggest user verify SHAs."
+
+  language_extension_unknown:
+    condition: "File extension not in the language enum."
+    action: "ASK the user explicitly. Do not guess language. Possibilities: proprietary DSL, unsupported language, or test fixture data."
+
+  monorepo_with_multiple_languages:
+    condition: "scope_type=repo or package contains multiple languages."
+    action: >
+      Run audit per-language partition. Aggregate layer scores by language-weighted
+      average (weight = LOC per language, normalized). Report each language's tier
+      separately AND the aggregate tier.
+
+  test_files_in_scope:
+    condition: "Test files (matched via test directory or naming convention) included in scope."
+    action: >
+      Apply L1-COR, L4-MNT, L8-STR with relaxed thresholds (cyclomatic complexity
+      allowance +5; function length allowance +50 LOC). L5-TST checks treat test files
+      AS the artifact under audit — meta-tests are out of scope.
+
+  syntax_errors:
+    condition: "Source file contains syntax errors that prevent parsing."
+    action: >
+      Record a CRITICAL finding in L1-COR. If a parser produces partial AST, audit
+      the parseable portion. If unreadable, invoke layer-failure protocol (engine).
+
+  no_stated_intent_for_repo:
+    condition: "scope_type=repo or package, no README or package metadata, user declines to state intent."
+    action: >
+      Proceed with a degraded audit. L1.2 (docstring/comment alignment) and L6 (API
+      design) become advisory-only — without intent, the auditor cannot judge whether
+      the API matches purpose. Record degradation in decision_trace.auditor_notes.
+
+  oversized_file:
+    condition: "A single file in scope exceeds 5,000 LOC (non-blank, non-comment per @audit-engine §Deterministic vocabulary > non_blank_line)."
+    action: >
+      Audit per-element only (function/method/class boundary per the Mode 5
+      element-boundary rule). Do NOT load the full file body into a single context for
+      whole-file checks. Record in decision_trace.auditor_notes which files exceeded
+      the threshold and the per-element pass count for each. L8-STR.3 (file
+      organization) emits an ADVISORY finding by default for any oversized file;
+      MAJOR if the file mixes ≥ 3 unrelated responsibilities (per @audit-engine
+      §Deterministic vocabulary > junk_drawer).
+
+error_policy:
+  - { condition: "No source provided",                                   action: "HALT. Request source. Do not audit nothing." }
+  - { condition: "Scope ambiguous (path could be file, folder, or PR ref)", action: "HALT. Ask user to specify scope_type." }
+  - { condition: "Cannot parse a file in scope",                         action: "Record as CRITICAL finding in L1-COR. Continue audit on parseable files." }
+  - { condition: "Language not in enum",                                 action: "HALT. Ask user. Do not guess." }
+  - { condition: "User asks to skip a layer in Mode 1 (FULL)",          action: "Refuse. Offer Mode 2 (TARGETED) instead." }
+  - { condition: "User asks for 'performance audit only'",              action: "Run Mode 2 with layers = [L3-PRF]. Do not pretend other layers passed." }
+  - { condition: "Audit would require executing code (fuzz test, profile)", action: "Refuse. Code-audit is static analysis only. Recommend a separate execution-based session." }
+  - { condition: "Out-of-scope request (fix this, add tests, refactor)", action: "Emit structured refusal. Route to user action / separate implementation session." }
+  - { condition: "Test output contradicts code-audit findings",          action: "Keep the finding. Note the contradiction in decision_trace.auditor_notes. The code may be wrong AND the test may be wrong." }
+
+output_contract:
+  note: "Base audit_report and finding schemas owned by @audit-engine."
+  domain: CODE
+  audit_id_prefix: "CDA-"
+  artifact_format:
+    scope_type:      "[enum]  # FILE | FILE_SET | MODULE | PACKAGE | PR_DIFF | COMMIT_RANGE | REPO | SUBAGENT_TWO_STAGE"
+    language:        "[list<enum>]  # one or more LANG_* values; MIXED reserved for hetero scopes"
+    loc:             "[integer]  # Total non-blank, non-comment LOC in scope"
+    base_sha:        "[string | null]  # Only for PR_DIFF / COMMIT_RANGE"
+    head_sha:        "[string | null]  # Only for PR_DIFF / COMMIT_RANGE"
+    pr_url:          "[string | null]  # Only for PR_DIFF"
+    generated_paths: "[list<string>]  # Paths skipped per generated_code edge case"
+    vendored_paths:  "[list<string>]  # Paths skipped per vendored_code edge case"
+    subagent:
+      task_id:       "[string | null]"
+      task_spec:     "[string]"
+      work_product:  "[list<string>]  # File paths produced by implementer"
+      stage:         "[enum | null]  # SPEC_COMPLIANCE | CODE_QUALITY | FINAL_REVIEW"
+      iteration:     "[integer | null]  # Re-review iteration counter for this stage"
+  layers_mode_1_and_5: "8 entries (L1-COR through L8-STR). L7-CNC MAY be SKIPPED for synchronous-only scopes."
+  layers_mode_2: "subset per user-specified target"
+  mode_5_note: >
+    In Mode 5, the engine's iteration block and remediation_plan block apply verbatim.
+    The Mode 5 procedure (M5-1 through M5-10) is owned by the engine; this module
+    supplies the layer set, check definitions, and element-boundary rule that each
+    granular pass uses.
+    Plan items MUST carry a determinism_certification block (engine-owned schema,
+    closed-shape, see @audit-engine §"Solution Determinism Gate"). This module
+    does not redefine the gate.
+
+subagent_two_stage_methodology:
+
+  why_two_stages: >
+    Combining "does this match the task spec?" with "is this code well-built?" into
+    a single review pass tends to weight one concern over the other and produces
+    inconsistent gates. Splitting into two strictly-ordered stages makes each gate
+    produce a clean signal: stage 1 fails = work product diverged from spec; stage 2
+    fails = work product matches spec but is not well-built. The two stages are
+    dependent (stage 2 cannot start until stage 1 is green) so a stage-1 failure
+    short-circuits the review without wasting stage-2 work.
+
+  stage_1:
+    name: "Spec Compliance"
+    question: "Does the work product match the task spec?"
+    layer_scope:
+      mode: TARGETED
+      layers:
+        - L1-COR       # full layer — does the code do what the spec describes?
+        - L6-API       # full layer — does the public surface match what the spec asks for?
+        - L4-MNT.4.3   # Naming clarity only — do names match the spec's terminology?
+      excluded: "All other L4 checks, all of L2 / L3 / L5 / L7 / L8 — these run in Stage 2."
+    pass_criteria:
+      zero_critical: true
+      zero_major: true
+      minor_and_advisory_permitted: true
+    loop:
+      - "Run targeted audit (L1-COR, L6-API, L4-MNT.4.3 only)."
+      - "If pass criteria met → record stage = SPEC_COMPLIANCE complete; advance to Stage 2."
+      - "If not met → return findings to implementer subagent. Implementer revises. Re-run Stage 1. Increment subagent.iteration."
+      - "Hard cap: 3 Stage-1 iterations. If still not green on the third → BLOCKED. Do not advance to Stage 2."
+
+  stage_2:
+    name: "Code Quality"
+    question: "Is the work product well-built?"
+    precondition: "Stage 1 MUST be green. Refuse to start Stage 2 otherwise."
+    layer_scope:
+      mode: TARGETED
+      layers:
+        - L2-SEC
+        - L3-PRF
+        - L4-MNT       # full layer EXCEPT L4-MNT.4.3 (already passed in Stage 1)
+        - L5-TST
+        - L7-CNC       # SKIPPED if synchronous-only
+        - L8-STR
+      excluded: >
+        L1-COR and L6-API excluded (passed in Stage 1 — re-running is wasted work).
+        Exception: if Stage 2 surfaces evidence that contradicts a Stage 1 PASS
+        (including stale names), that contradiction IS a Stage 2 finding.
+    pass_criteria:
+      zero_critical: true
+      zero_major: true
+      minor_permitted_but_flagged: true
+      advisory_informational: true
+    loop:
+      - "Run targeted audit (L2-SEC, L3-PRF, L4-MNT minus L4-MNT.4.3, L5-TST, L7-CNC, L8-STR)."
+      - "If pass criteria met → record stage = CODE_QUALITY complete; task is done."
+      - "If not met → return findings. Implementer revises. Re-run Stage 2 (NOT Stage 1 — Stage 1 stays green). Increment subagent.iteration."
+      - "Hard cap: 3 Stage-2 iterations. If still not green on the third → BLOCKED."
+
+  review_cadence:
+    per_task: "Stage 1 then Stage 2 — run after each implementer-subagent task, before advancing to the next task."
+    final_review: >
+      After all tasks complete, run a full Mode 1 audit (@code-audit <scope> full)
+      on the entire implementation. NOT two-stage — it is a complete 8-layer audit
+      on the whole work, intended to catch cross-task issues: architecture coherence,
+      dependency cycles between tasks, test-suite consistency, contradictions between
+      per-task PASS verdicts and the integrated whole.
+      If final review surfaces CRITICAL or MAJOR findings: return to implementer for
+      whole-implementation revisions. Re-run final review. Hard cap: 3 iterations.
+
+  cognitive_load_contract:
+    note: "Subagent two-stage scope activates the 9-slot cognitive-load profile from @audit-engine §Mode 5 state externalization."
+    active_slots:
+      S1_pass_number:                  "Mode 5 pass counter (still in use)"
+      S2_intent_anchor:                "task spec is the intent_anchor (immutable)"
+      S3_current_pass_findings_buffer: "current Stage findings"
+      S4_scratchpad_id:                "engine bootstrap scratchpad"
+      S5_halt_evaluation_state:        "NORMAL | PENDING_HALT | HALTED"
+      S6_stage:                        "SPEC_COMPLIANCE | CODE_QUALITY | FINAL_REVIEW"
+      S7_iteration_counter:            "Stage 1 / Stage 2 / Final iteration counter (cap 3)"
+      S8_spec_anchor:                  "task spec verbatim (== intent_anchor for this scope)"
+      S9_work_product_paths:           "list of file paths produced by implementer"
+    design_target: "9 active slots → cognitive-load check is PARTIAL (per engine list)."
+    forbidden_extra_slots: >
+      Tokenizers, file-readers, regex engines, AST parsers, the implementer
+      subagent's own internal state, and the iteration cap constants are NOT counted
+      as slots. Adding a tenth slot — by any name — is a PARTIAL → FAIL transition
+      for the cognitive-load check.
+
+  status_taxonomy:
+    DONE:              "Stage 1 green, Stage 2 green. Task complete. Advance."
+    DONE_WITH_CONCERNS: "Both stages green; MINOR findings remain. Note in routing.informational. Advance, but caller may opt to fix MINOR findings before final review."
+    NEEDS_CONTEXT:     "Audit cannot complete because the task spec or work product is incomplete or ambiguous. Halt. Return the specific gap. Caller's job to resolve before re-invoking."
+    BLOCKED:           "Audit completed but work product cannot pass within the iteration cap. Surface consolidated findings. Caller MUST intervene. Code-audit will NOT loop further."
+
+  reviewer_prompt_templates:
+    note: >
+      The actual prompt templates for the implementer, spec-compliance reviewer, and
+      code-quality reviewer live in the upstream subagent-driven-development skill.
+      Do NOT duplicate them here. When running a per-task gate, the auditor reads from:
+    template_path_base: '%USERPROFILE%\.cursor\plugins\cache\cursor-public\superpowers\b7a8f76985f1e93e75dd2f2a3b424dc731bd9d37\skills\subagent-driven-development\'
+    stale_cache_path_recovery:
+      step_1: "Treat the path as a pre-flight target (same as PF-4/PF-5 structural precedents)."
+      step_2: "If canonical path resolves and is readable, proceed."
+      step_3: "If it fails, run: Get-ChildItem \"$env:USERPROFILE\\.cursor\\plugins\\cache\\cursor-public\\superpowers\\\" and resolve under <cache-dir>\\skills\\subagent-driven-development\\. This is the ONLY permitted recovery."
+      step_4: "If recovery still fails → HALT with halt_reason: PRE_FLIGHT_FAILURE. Do NOT proceed to a stage that depends on the missing template."
+
+  red_flags:
+    - "NEVER start Stage 2 before Stage 1 is green."
+    - "NEVER run a 'code quality only' audit and call it complete — that bypasses Stage 1."
+    - "NEVER let self-review replace real review. The implementer subagent's own claim that the work is correct is not evidence; the audit produces evidence. Do not weight the implementer's status message in the PASS/FAIL judgment."
+    - "NEVER advance to the next task while the current task has CRITICAL or MAJOR findings open. MINOR is acceptable per pass criteria."
+    - "NEVER run implementer subagents in parallel for the same task. The audit cannot reason about race conditions in the development process itself; serialize per task."
+    - "NEVER silently retry an audit pass after the iteration cap. Halt with BLOCKED."
+    - "NEVER invent a stage 1.5 or 2.5. The two-stage gate is exactly two stages."
+
+  model_tier_policy:
+    note: "Recommendation only. The caller decides; the audit's PASS/FAIL judgment is independent of reviewer model tier."
+    implementer:      "least-capable model that fits the role's language and complexity — saves cost; the gate catches errors"
+    stage_1_reviewer: "mid-tier model — Stage 1 is structurally narrower and does not benefit proportionally from a top-tier model"
+    stage_2_reviewer: "strongest available model — broadest layer scope; highest cost of a missed finding"
+    final_reviewer:   "strongest available model — same rationale as Stage 2, plus cross-task coherence requires the largest reasoning surface"
+
+companion_commands:
+  - name: "@audit-engine"
+    path: 'C:\Users\rtoth\.cursor\commands\audit-engine\COMMAND.md'
+    role: "Orchestrator. Owns the loop semantics. Required reading before any audit."
+  - name: "references/audit_workflow.yaml"
+    path: 'C:\Users\rtoth\.cursor\commands\audit-engine\references\audit_workflow.yaml'
+    role: "Sibling workflow-domain module. Loaded by @audit-engine for the workflow partition of mixed-content runs."
+  - name: "code-review---iterative"
+    type: skill
+    role: "Companion skill for non-audit review lanes (request, receive, PR babysit). When audit findings need to be dispatched to a separate reviewer, that skill hosts the request/receive cycle. The iterative full-tree review and subagent two-stage gates lanes from that skill ARE captured here; the other lanes remain there."
+  - name: "context-bootstrap"
+    type: skill
+    role: "Session continuity. Mode 5 always crosses sessions, so a bootstrap entry is required at handoff to the implementation session."
+  - name: "deterministic-prompt-builder"
+    type: skill
+    role: "RARELY invoked from code-audit (it is for prompts, not code). Used only when the code under audit is a prompt artifact (e.g. an LLM tool's system-prompt string baked into source); routes via prompt_builder_substeps."
+
+procedure_summary: |
+  INVOCATION: @code-audit [<scope_type>] [<mode>]
+              (or loaded by @audit-engine on code partition;
+               canonical: audit-engine/references/audit_code.yaml)
+
+  STEP 0:  Pre-Audit Setup
+           → Confirm scope → Generate audit_id (CDA-...) → Identify language(s)
+           → Confirm scope_type → Confirm intent → Capture optional test output
+           → Run viability gate
+
+  STEP 1:  Execute Audit Layers 1–4 (correctness + posture)
+           For each layer (L1-COR, L2-SEC, L3-PRF, L4-MNT):
+             → Run all checks (engine per-check error protocol applies)
+             → Record findings
+             → Calculate layer score
+             → If layer cannot complete → invoke engine layer-failure protocol
+
+  CHECKPOINT: Summarize Layers 1–4 findings before continuing.
+              Pay special attention to L2-SEC CRITICAL findings;
+              those cap the tier at D regardless of remaining layers.
+
+  STEP 2:  Execute Audit Layers 5–8 (testability + design + concurrency + structure)
+           For each layer (L5-TST, L6-API, L7-CNC, L8-STR):
+             → Run all checks
+             → Record findings
+             → Calculate layer score
+             → L7-CNC: SKIP all checks if scope is synchronous-only;
+               renormalize layer weights accordingly.
+
+  STEP 3:  Calculate overall score and tier
+           → Weighted average with layer_weights
+           → Apply universal overrides (engine) + tier_overrides (this module)
+           → Stricter cap wins on conflict
+
+  STEP 4:  Classify and route findings
+           → Severity per engine severity_definitions
+           → Sort: severity DESC, layer order ASC
+           → Routing: USER_ACTION (most code findings),
+                      INFORMATIONAL (advisory style/perf),
+                      PROMPT_BUILDER (rare — only for prompt-string code)
+
+  STEP 5:  Assemble report
+           → Populate audit_report (engine schema)
+           → domain = CODE; audit_id = CDA-...
+           → Populate artifact_format with scope_type, language list, LOC,
+             SHAs/PR-URL if applicable, generated/vendored path lists.
+
+  STEP 6:  Present to user
+           → Deliver the audit report
+           → Highlight CRITICAL security and correctness findings first.
+           → Offer: "Want me to drill into any layer or specific finding?"
+           → If post_mortem: present root_cause mapping
+           → If diff: present comparative table
+           → If iterative (Mode 5): proceed per engine M5 procedure
+
+  STEP 7:  Route on user confirmation
+           → User confirms routing queues
+           → Findings routed to user action or implementation session.
+           → For review-workflow handoff: cite code-review---iterative skill.
+
+  MODE 5:  Steps M5-1 through M5-10 are owned by @audit-engine.
+           Each granular pass (M5-3) runs all 8 code layers per the engine's
+           per-check protocol. Element boundary for M5-3:
+             1. Function / method
+             2. Class / type (when no method body in scope)
+             3. Module-level statements
+             4. File (when none of 1–3 apply)
+           (Use the first matching level; never blend levels.)
+
+  SUBAGENT TWO-STAGE: scope_type=subagent_two_stage
+           Stage 1 (TARGETED: L1-COR, L6-API, L4-MNT.4.3 only)
+             → Loop until zero MAJOR-or-higher; cap 3 iterations.
+             → On cap: BLOCKED.
+           Stage 2 (TARGETED: L2-SEC, L3-PRF, L4-MNT minus L4-MNT.4.3, L5-TST, L7-CNC, L8-STR)
+             → Pre-condition: Stage 1 green (canonical at subagent_two_stage_methodology.stage_2.precondition).
+             → Loop until zero MAJOR-or-higher; cap 3 iterations.
+             → On cap: BLOCKED.
+           Final review (after all tasks): full Mode 1 audit.
+           Status taxonomy: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED.

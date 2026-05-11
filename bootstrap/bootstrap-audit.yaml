@@ -1,0 +1,236 @@
+instructions_md: |
+  # bootstrap-audit (agent prose)
+
+  You classify workspace context files for staleness. You read files; you
+  never modify or delete them.
+
+  ## Steps
+
+  1. Enumerate workspace context files within scope: `rules/*`, `skills/**/*`,
+     `reference/*`, `config/*`, `{workspace_root}/*.md`, active bootstrap
+     command sources, generated bootstrap mirrors, plus every filename listed
+     in the prior bootstrap's `context_file_audit`. Deduplicate.
+  2. Index the prior bootstrap's audit by filename (hint only — current
+     workspace state is canonical).
+  3. For each enumerated file:
+     - Load its content
+     - Cross-reference against `prior_decisions`, `prior_tasks`,
+       `prior_audit_index`
+     - Assign status: `CURRENT` | `STALE` | `NEEDS_UPDATE` | `DUPLICATE`
+     - If status is not `CURRENT`, write a note explaining the issue
+  4. Pairwise content-compare to detect duplicates. Mark both files as
+     `DUPLICATE` with cross-reference notes.
+  5. Check generated mirrors against their source YAMLs. If a mirror is stale,
+     mark it `NEEDS_UPDATE`; recommended action is mirror regeneration, never
+     manual mirror editing.
+  6. Aggregate counts and changed classifications.
+  7. Emit the audit per output contract. Hand off to `bootstrap-init`.
+
+  ## Hard rules
+
+  - Never modify, write, or delete any file. Read-only invariant — violation
+    is HARD_FAILURE.
+  - Never default to `CURRENT` when uncertain. Default to `NEEDS_UPDATE` with
+    note `"classification ambiguous — please review"`.
+  - Never silently resolve contradictions between two files. Flag both,
+    recommend user review.
+  - Never emit a natural-language audit summary. Only the structured output
+    contract.
+  - Never describe each file in prose. The `audit_entries` list IS the report.
+  - The prior audit is a HINT, not a fact. Always inspect fresh.
+
+command: bootstrap-audit
+phase: 1
+step: 2
+invokes_after: bootstrap-ingest
+invokes_before: bootstrap-init
+governed_by: COMMAND.md
+mission: classify workspace context files for staleness, drift, or duplication
+
+scope:
+  - enumerate workspace context files
+  - include active bootstrap command sources and generated mirrors
+  - cross-reference prior bootstrap context_file_audit
+  - classify each file: CURRENT | STALE | NEEDS_UPDATE | DUPLICATE
+  - emit audit report
+
+non_scope:
+  - reading prior bootstrap (done by bootstrap-ingest)
+  - initializing new bootstrap (done by bootstrap-init)
+  - modifying any file
+  - deleting any file
+  - auditing source code or data files
+  - editing generated mirrors manually
+
+authority:
+  canonical: current_workspace_state
+  prior_audit_role: hint_only_not_fact
+  on_conflict: current_workspace_wins
+
+inputs:
+  required:
+    project_name: string
+    workspace_root: path
+    parsed_prior_bootstrap: object
+  derived:
+    prior_audit: parsed_prior_bootstrap.context_file_audit
+    prior_decisions: parsed_prior_bootstrap.decisions
+    prior_tasks: parsed_prior_bootstrap.tasks
+  ignored:
+    - source_code_files
+    - data_files
+
+algorithm:
+  - id: 1_enumerate_context_files
+    op: scan_workspace
+    patterns:
+      - "rules/*"
+      - "skills/**/*"
+      - "reference/*"
+      - "config/*"
+      - "{workspace_root}/*.md"
+      - "C:/Users/rtoth/.cursor/commands/bootstrap/*.yaml"
+      - "C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md"
+      - "C:/Users/rtoth/.cursor/commands/bootstrap/mirrors/*.md"
+      - prior_audit.*.filename  # also check anything previously audited
+    sets: enumerated_files
+    deduplicate: true
+
+  - id: 2_load_prior_audit
+    op: index_by_filename
+    input: prior_audit
+    sets: prior_audit_index
+    on_empty: continue with empty index
+
+  - id: 3_classify_each_file
+    op: iterate_with_classifier
+    input: enumerated_files
+    per_file:
+      - load_file_content
+      - check_against: [prior_decisions, prior_tasks, prior_audit_index]
+      - assign_status: {enum: [CURRENT, STALE, NEEDS_UPDATE, DUPLICATE]}
+      - if_status_not_CURRENT: write_note_explaining_issue
+    sets: audit_entries
+
+  - id: 4_detect_duplicates
+    op: pairwise_content_compare
+    input: enumerated_files
+    sets: duplicate_pairs
+    apply: mark both as DUPLICATE with cross-reference note
+
+  - id: 5_detect_source_mirror_drift
+    op: compare_generated_mirrors_to_sources
+    input: enumerated_files matching bootstrap mirror files
+    source_mapping: mirror header AUTO-GENERATED FROM <source_yaml>
+    on_stale_mirror:
+      assign_status: NEEDS_UPDATE
+      note: "generated mirror differs from source or regeneration timestamp; regenerate mirrors, do not edit manually"
+    sets: source_mirror_drift_entries
+
+  - id: 6_compute_summary
+    op: aggregate
+    sets:
+      summary:
+        CURRENT: count_where(status == CURRENT)
+        STALE: count_where(status == STALE)
+        NEEDS_UPDATE: count_where(status == NEEDS_UPDATE)
+        DUPLICATE: count_where(status == DUPLICATE)
+      changed_classifications: count_where(prior_status != current_status)
+
+  - id: 7_emit_and_handoff
+    op: output
+    format: per_output_contract
+    handoff: bootstrap-init
+
+output_contract:
+  format: structured
+  required_fields:
+    files_audited: integer
+    summary:
+      CURRENT: integer
+      STALE: integer
+      NEEDS_UPDATE: integer
+      DUPLICATE: integer
+    flagged_files:
+      type: list
+      filter: status != CURRENT
+      fields_per_entry: [filename, status, note]
+    recommended_actions:
+      type: list
+      audience: user
+      examples: ["review {file} — references retired schema D-003"]
+    decision_trace:
+      classification_sources: [prior_audit_hint, fresh_inspection]
+      prior_audit_entries_consulted: integer
+      new_classifications: integer
+      changed_classifications: integer
+      source_mirror_drift_count: integer
+    handoff: ready_for_bootstrap-init
+
+validation_gates:
+  - id: status_enum_compliance
+    check: every audit_entries[*].status in [CURRENT, STALE, NEEDS_UPDATE, DUPLICATE]
+    on_fail: reject and reclassify
+  - id: note_completeness
+    check: every entry where status != CURRENT has non-null note
+    on_fail: reject and write note
+  - id: read_only_invariant
+    check: no file modified or deleted during this command
+    on_fail: HARD_FAILURE log and alert user
+  - id: generated_mirrors_not_manually_edited
+    check: stale mirror recommendations are regenerate-only, not manual edits
+    on_fail: reject and rewrite_recommendation
+
+error_policy:
+  NO_CONTEXT_FILES_FOUND:
+    detect: workspace has no enumerable context files
+    actions:
+      - report: "no context files found at expected locations"
+      - emit_empty_audit
+      - handoff: bootstrap-init
+
+  PRIOR_AUDIT_MISSING:
+    detect: parsed_prior_bootstrap.context_file_audit is empty or absent
+    actions:
+      - proceed_with_fresh_audit
+      - note_in_decision_trace: no_prior_audit_available
+
+  CLASSIFICATION_AMBIGUOUS:
+    detect: cannot decide between STALE and NEEDS_UPDATE
+    default_status: NEEDS_UPDATE
+    required_note: "classification ambiguous — please review"
+
+  CONTRADICTORY_FILES_DETECTED:
+    detect: two active files contain contradictory content
+    actions:
+      - flag_in_output
+      - recommend_user_review_before_proceeding
+    forbidden: silent_resolution
+
+  SOURCE_MIRROR_DRIFT:
+    detect: generated bootstrap mirror does not match source YAML or is older than source
+    actions:
+      - mark_mirror_NEEDS_UPDATE
+      - recommend_mirror_regeneration
+    forbidden:
+      - manual_mirror_edit
+      - silent_resolution
+
+anti_drift:
+  - never_modify_files
+  - never_edit_generated_mirrors
+  - never_silently_resolve_contradictions
+  - never_default_to_CURRENT_when_uncertain
+  - never_skip_for_speed
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_meta_commentary_about_what_will_be_done
+  - never_describe_each_file_in_prose_emit_audit_entries_only
+  - never_offer_a_natural_language_audit_summary
+  - never_ask_clarifying_questions_before_executing
+  - never_request_user_confirmation_to_begin
+  - first_visible_token_must_be_populated_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - read_only_invariant_violation_is_HARD_FAILURE_not_warning

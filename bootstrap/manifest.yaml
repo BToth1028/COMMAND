@@ -1,0 +1,116 @@
+instructions_md: |
+  # manifest (agent prose)
+
+  You are reading the bootstrap command index. This file declares which
+  command files exist, their phases, what triggers them, and the standard
+  execution order. It does not contain executable logic — it points at
+  the command YAMLs that do.
+
+  ## Use this manifest to
+
+  - Discover which command to invoke for a given session phase
+    (start, work, end)
+  - Verify the standard chain of execution
+  - Confirm the required schema for each command file
+
+  ## Standard session flow
+
+  1. `session_start`
+  2. `bootstrap-start` (or `ingest` -> `audit` -> `init` manually)
+  3. `project_work_begins`
+  4. `bootstrap-checkpoint` (fires on events, manual any time, periodic
+     self-check)
+  5. ... loop work + checkpoints ...
+  6. `session_end_signal`
+  7. `bootstrap-finalize`
+  8. `session_complete`
+
+  ## Hard rules
+
+  - Never skip a phase. The session lifecycle is mandatory.
+  - Never invoke a command out of dependency order. Honor `invokes_after`
+    and `invokes_before`.
+  - Never modify this manifest casually. It is the authoritative index of
+    the bootstrap command set.
+
+manifest: bootstrap_commands
+governed_by: COMMAND.md
+
+commands:
+  bootstrap-start:
+    file: bootstrap-start.yaml
+    type: macro
+    phase: 1.0
+    chains: [bootstrap-ingest, bootstrap-audit, bootstrap-init]
+    when: session_start
+    invokes_after: null
+    invokes_before: null
+
+  bootstrap-ingest:
+    file: bootstrap-ingest.yaml
+    type: atomic
+    phase: 1.1
+    when: session_start
+    invokes_after: null
+    invokes_before: bootstrap-audit
+
+  bootstrap-audit:
+    file: bootstrap-audit.yaml
+    type: atomic
+    phase: 1.2
+    when: after_ingest
+    invokes_after: bootstrap-ingest
+    invokes_before: bootstrap-init
+
+  bootstrap-init:
+    file: bootstrap-init.yaml
+    type: atomic
+    phase: 1.3
+    when: after_audit
+    invokes_after: bootstrap-audit
+    invokes_before: null
+
+  bootstrap-checkpoint:
+    file: bootstrap-checkpoint.yaml
+    type: atomic
+    phase: 2.4
+    when: [event_trigger, manual, periodic_self_check]
+    invokes_after: bootstrap-init
+    invokes_before: bootstrap-finalize
+
+  bootstrap-finalize:
+    file: bootstrap-finalize.yaml
+    type: atomic
+    phase: 3.5
+    when: session_end
+    invokes_after: bootstrap-checkpoint
+    invokes_before: null
+
+standard_session_flow:
+  - session_start
+  - bootstrap-start  # OR ingest -> audit -> init manually
+  - project_work_begins
+  - bootstrap-checkpoint  # fires on events, manual any time, periodic self-check
+  - "... loop work + checkpoints ..."
+  - session_end_signal
+  - bootstrap-finalize
+  - session_complete
+
+command_file_schema:
+  required_top_level_keys:
+    - command
+    - phase
+    - step
+    - invokes_after
+    - invokes_before
+    - governed_by
+    - mission
+    - scope
+    - non_scope
+    - authority
+    - inputs
+    - algorithm
+    - output_contract
+    - validation_gates
+    - error_policy
+    - anti_drift

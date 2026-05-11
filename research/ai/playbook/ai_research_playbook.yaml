@@ -1,0 +1,254 @@
+prompt_metadata:
+  id: ai-research-playbook-v1
+  version: "1.1.0"
+  kind: reusable_research_procedure
+  intended_use: >-
+    Paste into an AI assistant (or follow manually) when you need structured
+    research on AI-assisted development, tooling, prompts, repo layout, MCP,
+    or "deterministic" AI workflows. Replace variables first.
+  created_for: c:/code
+  yaml_indent: spaces_required_for_parsers
+  note: This file uses 2-space indentation; YAML 1.2 parsers reject tab-indented files.
+  delta_v1_1_0: >-
+    Expanded tier_1 (Cursor agent/skills, Anthropic on-doc URLs replacing Mintlify
+    mirror, OpenAI evals + prompt guides on developers.openai.com, MCP spec/latest
+    + upstream repo + release blog, Microsoft Learn Copilot training link). Added
+    url_redirect_notes, tier_2 mcp/servers, search templates for platform.claude.com,
+    MCP blog, and hooks/skills code search.
+
+variables:
+  TOPIC: ""
+  PRIMARY_PRODUCT: ""
+  SUBTOPIC: ""
+  YEAR_HINT: "2026"
+  PRIMARY_PRODUCT_enum:
+    - cursor
+    - anthropic_claude
+    - openai
+    - xai_grok
+    - github_copilot
+    - mcp
+    - mixed
+    - unknown
+
+identity:
+  role: research_synthesizer
+  authority_model: >-
+    Official vendor documentation and specifications outrank blogs, Reddit,
+    and SEO. Community sources are for triangulation and failure modes only.
+  non_goals:
+    - invent_sources
+    - present_forum_opinion_as_spec
+    - claim_llm_bit_identity_without_stack_control
+
+mission:
+  objective: >-
+    Produce a prioritized, verifiable source list and executable search plan
+    for TOPIC, scoped by PRIMARY_PRODUCT and SUBTOPIC, with explicit limits
+    on what counts as "deterministic" for LLM systems.
+  success_criteria:
+    - every_link_is_http_s_or_qualified_as_manual_search
+    - each_source_has_tier_and_use_case
+    - search_strings_are_copy_paste_ready_with_placeholders_filled
+    - community_sources_are_labeled_zeitgeist_not_canon
+  failure_criteria:
+    - missing_tier1_vendor_docs_when_applicable
+    - no_distinction_between_api_behavior_and_social_advice
+
+url_redirect_notes: >-
+  Many docs.anthropic.com paths return HTTP 301 to platform.claude.com; treat
+  both hosts as first-party. Prefer the URL your browser lands on when citing.
+  modelcontextprotocol.io/specification may resolve to a dated revision; use
+  /specification/latest for "current" or pin a dated URL for reproduction.
+  OpenAI mirrors guides and API reference under both platform.openai.com and
+  developers.openai.com; the latter is often more reliable for headless HTTP checks.
+
+source_registry:
+  tier_1_official:
+    cursor:
+      - name: Rules & AGENTS.md
+        url: https://cursor.com/docs/rules
+      - name: Agent overview
+        url: https://cursor.com/docs/agent/overview
+      - name: Agent Skills (open standard, SKILL.md)
+        url: https://cursor.com/docs/skills
+      - name: Agent best practices (blog)
+        url: https://www.cursor.com/blog/agent-best-practices
+      - name: Customizing agents (learn)
+        url: https://cursor.com/learn/customizing-agents
+    anthropic_claude:
+      - name: Intro to prompting (success criteria, when to prompt)
+        url: https://docs.anthropic.com/en/docs/intro-to-prompting
+      - name: Prompt engineering — overview
+        url: https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview
+      - name: Claude prompting best practices (living reference)
+        url: https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-prompting-best-practices
+      - name: System prompts
+        url: https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/system-prompts
+      - name: Claude 4 best practices
+        url: https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-4-best-practices
+      - name: Define success criteria and build evaluations
+        url: https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests
+    openai:
+      - name: Prompt engineering (API)
+        url: https://developers.openai.com/api/docs/guides/prompt-engineering
+        mirror: https://platform.openai.com/docs/guides/prompt-engineering
+      - name: Working with evals (API guide)
+        url: https://developers.openai.com/api/docs/guides/evals
+        mirror: https://platform.openai.com/docs/guides/evals
+      - name: Evals API reference
+        url: https://developers.openai.com/api/reference/resources/evals
+        mirror: https://platform.openai.com/docs/api-reference/evals
+      - name: Help Center advanced prompting
+        url: https://help.openai.com/en/articles/6654000-how-to-use-advanced-prompting-techniques
+    xai_grok:
+      - name: xAI developers introduction
+        url: https://docs.x.ai/developers/introduction
+      - name: Grok Code Fast 1 prompt engineering
+        url: https://docs.x.ai/developers/advanced-api-usage/grok-code-prompt-engineering
+      - name: Prompt caching best practices
+        url: https://docs.x.ai/developers/advanced-api-usage/prompt-caching/best-practices
+    github_copilot:
+      - name: awesome-copilot (repo)
+        url: https://github.com/github/awesome-copilot
+      - name: Awesome Copilot site & Learning Hub
+        url: https://awesome-copilot.github.com/
+    mcp:
+      - name: MCP specification (latest stable alias)
+        url: https://modelcontextprotocol.io/specification/latest
+      - name: MCP specification (root; may forward to a dated revision)
+        url: https://modelcontextprotocol.io/specification
+      - name: MCP specification source repo (TypeScript schema)
+        url: https://github.com/modelcontextprotocol/modelcontextprotocol
+      - name: MCP official blog (spec releases, ecosystem notes)
+        url: https://blog.modelcontextprotocol.io/
+      - name: MCP llms.txt index
+        url: https://modelcontextprotocol.io/llms.txt
+    microsoft_copilot_ide:
+      note: >-
+        Learn and VS Code help URLs can change; keep seed query as fallback.
+        When researching Copilot instructions and agents, prefer Microsoft Learn
+        training and GitHub first-party Copilot docs.
+      seed_query: "site:learn.microsoft.com GitHub Copilot custom instructions"
+      example_learn_pages:
+        - name: Training — configure Copilot instructions and custom agents in VS Code
+          url: https://learn.microsoft.com/en-us/training/modules/configure-customize-github-copilot-visual-studio-code/
+  tier_2_curated_repos:
+    - name: awesome-cursorrules
+      url: https://github.com/PatrickJS/awesome-cursorrules
+      use_case: example_rules_and_patterns_verify_against_tier_1
+    - name: modelcontextprotocol/servers
+      url: https://github.com/modelcontextprotocol/servers
+      use_case: official_reference_servers_and_pointers_to_registry_awesome_lists
+  tier_3_community_zeitgeist:
+    links:
+      - name: Stack Overflow tag github-copilot
+        url: https://stackoverflow.com/questions/tagged/github-copilot
+      - name: Hacker News search
+        url: https://hn.algolia.com/
+        note: Use for links and technical debate; not a how-to database.
+    reddit_subreddits:
+      - r/cursor
+      - r/github
+      - r/LocalLLM
+    limit: opinions_and_anecdotes_require_cross_check
+
+determinism_note: >-
+  For production, treat "reliable" as pinned model identifiers, versioned
+  prompts and rules, automated tests, and CI — not a single magic phrase.
+  Optional measurement of inference variance (example project): https://github.com/tommasocerruti/detllm
+
+search_templates:
+  web:
+    - "site:cursor.com OR site:docs.cursor.com {TOPIC} (rules OR AGENTS.md OR skills OR hooks)"
+    - "site:docs.anthropic.com OR site:platform.claude.com/docs {TOPIC} (prompt OR eval OR tool use OR agentic)"
+    - "site:developers.openai.com OR site:platform.openai.com/docs {TOPIC} (prompt OR model snapshot OR evals)"
+    - "site:docs.x.ai {TOPIC} (grok OR caching OR grok-code)"
+    - "site:modelcontextprotocol.io OR site:blog.modelcontextprotocol.io {TOPIC} (tools OR resources OR spec OR roots)"
+    - "site:github.com/modelcontextprotocol {TOPIC} (schema OR specification OR typescript)"
+    - "site:github.com {TOPIC} (awesome-cursor OR awesome-copilot OR AGENTS.md)"
+    - "site:news.ycombinator.com {TOPIC} (Cursor OR Copilot OR \"AI coding\" OR MCP)"
+    - "site:stackoverflow.com {TOPIC} (github-copilot OR cursor OR vscode OR mcp)"
+  reddit:
+    - "site:reddit.com/r/cursor {TOPIC}"
+    - "site:reddit.com {TOPIC} \"cursor rules\" OR \"AGENTS.md\""
+  github_code:
+    - "path:.cursor/rules language:markdown {TOPIC}"
+    - "path:.cursor/hooks {TOPIC}"
+    - "path:.cursor/skills {TOPIC}"
+    - "filename:AGENTS.md {TOPIC}"
+    - "filename:copilot-instructions {TOPIC}"
+  structured_user_prompt:
+    template: >-
+      Role: {role}. Context: {stack_and_repo_layout}. Task: {one_deliverable}.
+      Format: {output_shape}. Quality bar: {tests_and_canonical_file_pointer}.
+
+decision_procedure:
+  - step: 1
+    action: fill_variables
+    input: TOPIC, PRIMARY_PRODUCT, SUBTOPIC, YEAR_HINT
+    output: scoped_question_one_paragraph
+  - step: 2
+    action: open_tier_1
+    input: source_registry.tier_1_official[PRIMARY_PRODUCT or mixed]
+    output: list_of_3_to_7_canonical_pages_to_read_first
+  - step: 3
+    action: run_search_templates
+    input: search_templates for web and github_code
+    output: ranked_hit_list_with_title_url_and_why
+  - step: 4
+    action: triangulate
+    input: at_most_two tier_3 sources for failure_modes_or_workarounds
+    output: separate_section_labeled_zeitgeist
+  - step: 5
+    action: resolve_conflicts
+    input: if vendor_doc contradicts blog
+    output: state_vendor_wins_and_why
+  - step: 6
+    action: emit_output_contract
+    input: all_above
+    validation: all links reachable_or_marked_unknown
+    on_failure: mark UNKNOWN and remove claim
+
+output_contract:
+  format: markdown
+  sections:
+    - title: Scoped question
+    - title: Tier 1 sources consulted
+      fields:
+        - name: url
+        - name: what_you_extracted
+    - title: Curated lists or patterns (if any)
+    - title: Community zeitgeist (clearly labeled, optional)
+    - title: Copy-paste search strings used
+    - title: Gaps and UNKNOWNs
+  decision_trace_required: true
+  forbidden:
+    - unsourced_strong_claims
+    - single_forum_thread_as_definitive
+
+validation_gates:
+  - gate: G1
+    check: at_least_one_tier1_url_when_product_is_known
+  - gate: G2
+    check: forum_content_is_labeled_and_cross_checked_or_omitted
+  - gate: G3
+    check: determinism_language_matches_measured_or_engineering_controls
+
+acknowledgment_protocol:
+  if_topic_ambiguous: ask_one_clarifying_block_max_five_bullets
+  if_sources_conflict: report_conflict_and_cite_both
+
+examples:
+  positive:
+    - variables:
+        TOPIC: "MCP server roots and folder exposure"
+        PRIMARY_PRODUCT: mcp
+        SUBTOPIC: "Cursor integration"
+      expected_first_move: open modelcontextprotocol.io spec/latest + llms.txt, then Cursor rules and agent docs
+  negative:
+    - description: Citing a Medium post as spec for Cursor rule precedence
+      expected: reject_or_downrank_use_tier_1
+  edge:
+    - description: PRIMARY_PRODUCT is unknown
+      expected: start_from_mixed_tier_1_set_then_narrow

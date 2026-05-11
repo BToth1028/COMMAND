@@ -1,0 +1,113 @@
+{
+  "name": "proc-housekeep",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proc-housekeep",
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "proc-housekeep"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5070/mod-delt-scan",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"hours\": 24}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "step-1-delt-scan",
+      "name": "Step 1: Delta Scan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5070/mod-pend-clnp",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"days\": 14, \"dry_run\": false}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "step-2-pend-clnp",
+      "name": "Step 2: Pending Cleanup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5070/mod-fldr-clnp",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"dry_run\": false}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "step-3-fldr-clnp",
+      "name": "Step 3: Folder Cleanup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const deltaScan = $('Step 1: Delta Scan').first().json;\nconst pendClnp = $('Step 2: Pending Cleanup').first().json;\nconst fldrClnp = $('Step 3: Folder Cleanup').first().json;\n\nreturn {\n  json: {\n    status: 'success',\n    procedure: 'proc-housekeep',\n    completed: new Date().toISOString(),\n    results: {\n      delta_scan: deltaScan,\n      pend_cleanup: pendClnp,\n      fldr_cleanup: fldrClnp\n    }\n  }\n};"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1500, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Step 1: Delta Scan", "type": "main", "index": 0}]]
+    },
+    "Step 1: Delta Scan": {
+      "main": [[{"node": "Step 2: Pending Cleanup", "type": "main", "index": 0}]]
+    },
+    "Step 2: Pending Cleanup": {
+      "main": [[{"node": "Step 3: Folder Cleanup", "type": "main", "index": 0}]]
+    },
+    "Step 3: Folder Cleanup": {
+      "main": [[{"node": "Aggregate Results", "type": "main", "index": 0}]]
+    },
+    "Aggregate Results": {
+      "main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [{"name": "orchestrator"}, {"name": "housekeeping"}]
+}

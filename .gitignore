@@ -1,0 +1,4 @@
+# Optional directory junction(s) at this ID root mirror %USERPROFILE%\.cursor\commands.
+# Git core.symlinks=false would materialize/copy through the junction; keep out of the index.
+/master-router/
+/create-facet/

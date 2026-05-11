@@ -1,0 +1,3 @@
+bootstrap-decision-tree.md [Bootstrap Decision Tree] - | Derived explanatory ASCII tree for bootstrap protocol flow; not authority.
+bootstrap-ingest.yaml Read most recent bootstrap and emit synthesized state briefing
+bootstrap-start.yaml Thin orchestration macro for session start

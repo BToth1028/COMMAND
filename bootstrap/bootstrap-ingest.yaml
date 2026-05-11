@@ -1,0 +1,312 @@
+instructions_md: |
+  # bootstrap-ingest (agent prose)
+
+  You are reading a SUPPLIED prior bootstrap to load prior session state.
+  You do NOT scan directories. The bootstrap-start macro resolved the
+  selection (operator-driven, Section B.3) and handed you an absolute
+  `prior_bootstrap_path`. You produce a synthesized briefing — never a
+  verbatim YAML dump.
+
+  ## Steps
+
+  1. Load the supplied `prior_bootstrap_path`. If the file does not exist
+     OR cannot be opened, raise BROKEN_BOOTSTRAP and dispatch to recovery.
+  2. Parse the YAML. If parse fails (Q7 condition 1), raise BROKEN_BOOTSTRAP
+     and dispatch to recovery, capturing the parse error and partial raw
+     text for R3.
+  3. Verify required top-level keys: `project`, `session`, `tasks`,
+     `environment`, `context_file_audit`. (Note: `decisions` is no longer
+     required; it is allowed but session-scoped.) If any required key is
+     missing (Q7 condition 2), raise BROKEN_BOOTSTRAP and dispatch to
+     recovery.
+  4. Run data integrity checks: session.id matches filename timestamp,
+     all task ids unique within session, all referenced session_origins
+     are non-empty strings. If any integrity check fails (Q7 condition 3),
+     raise BROKEN_BOOTSTRAP and dispatch to recovery.
+  5. Compute counts: ACTIVE/BLOCKED/DEFERRED tasks, decisions, open issues,
+     stale audit entries.
+  6. Compose synthesized briefing per output contract. Do NOT dump YAML at
+     the user. Do NOT paraphrase content beyond what the contract requires.
+     Include `next_session_kickoff` in the output contract as a verbatim
+     copy of `parsed_bootstrap.next_session_kickoff` when that key exists;
+     otherwise null.
+  7. Hand off the parsed bootstrap object to `bootstrap-audit`.
+
+  ## Recovery flow (dispatched by step 1, 2, 3, or 4 OR by start macro
+  ## when stale-lock-with-missing-bootstrap detected)
+
+  - **R3 review partial.** If a partial broken file exists, read as raw
+    text, extract recoverable sections (top-of-file identity block usually
+    intact). Carry findings forward to R5.
+  - **R5 live-dir recovery.** While archive housekeeping is deferred, review
+    loose canonical bootstraps in
+    `{project_root}/02_working/chat-sessions/bootstrap/`. Exclude the broken
+    bootstrap file and supplemental derivatives unless the operator explicitly
+    selects a supplemental. Prefer the most recent valid canonical bootstrap
+    by filename timestamp, then internal `session.ended`, then file modified
+    time only if needed. Review in entirety. Perform 360 review using all
+    available live-dir bootstraps. Generate line-by-line status report on
+    the previous bootstrap's open items. Generate a supplemental bootstrap
+    named `{ProjectName}_{BrokenSessionID}S.yaml` in the live dir, with
+    `supplemental: true` and `supersedes: <broken_session_id>`.
+  - **R6 broken-file disposal.** AFTER supplemental is written and verified
+    (validate_bootstrap.py --finalized passes), send the broken original
+    to the OS desktop recycle bin per
+    `C:/Users/rtoth/.cursor/commands/housekeeping/command.housekeeping.yaml`
+    `removal_flow`. NEVER use Remove-Item. Recoverable from recycle bin if
+    review surfaces forensic need.
+  - **No valid recovery candidate fallback (Q6).** If the live directory has
+    no usable recovery candidate, ask the operator whether to start
+    session-zero using the already-known `project_root` and `project_name`.
+    Only explicit YES signals session-zero to bootstrap-init. No carry-forward.
+
+  After recovery generates the supplemental, re-enter step 1 with
+  `prior_bootstrap_path = <supplemental_path>`.
+
+  ## Hard rules
+
+  - Never substitute agent memory for the actual file content.
+  - Never dump YAML in chat as a substitute for synthesis.
+  - Never proceed to project work — that requires audit + init to complete first.
+  - Never emit "I will now read the bootstrap" or any preamble. The first
+    visible token is the populated output contract.
+  - Never scan directories to pick a bootstrap. Selection is the start
+    macro's job.
+  - Never silently fix a broken bootstrap in place. Recovery is the only path.
+  - Never delete the broken file with Remove-Item. R6 recycle-bin only.
+
+command: bootstrap-ingest
+phase: 1
+step: 1
+invokes_after: bootstrap-start_selection_dialog
+invokes_before: bootstrap-audit
+governed_by: COMMAND.md
+mission: load supplied prior bootstrap, validate integrity, dispatch to recovery on breakage, emit synthesized state briefing
+
+scope:
+  - load supplied prior_bootstrap_path
+  - parse YAML in full
+  - validate required top-level keys (per current schema)
+  - validate data integrity (Q7 conditions)
+  - dispatch to recovery flow on any breakage condition
+  - load all sections into working memory
+  - emit synthesized briefing
+
+non_scope:
+  - selecting which bootstrap to load (start macro's job)
+  - directory scanning
+  - modifying any bootstrap file (other than R6 recycle-bin disposal of broken)
+  - auditing context files
+  - initializing new bootstrap
+  - beginning project work
+  - reconstructing context from agent memory if no bootstrap exists
+
+authority:
+  canonical: supplied_prior_bootstrap_file
+  on_conflict: bootstrap_wins_over_agent_memory
+
+inputs:
+  required:
+    prior_bootstrap_path: absolute path to bootstrap YAML supplied by start macro
+    project_root: absolute path to project root
+  ignored:
+    - agent_memory_of_prior_conversations
+    - user_provided_summaries_of_past_work
+    - any_directory_scanning_logic
+
+algorithm:
+  - id: 1_load_supplied_path
+    op: open_file
+    input: prior_bootstrap_path
+    on_missing: raise BROKEN_BOOTSTRAP cause=file_not_found
+
+  - id: 2_parse_yaml
+    op: parse_yaml_file
+    input: prior_bootstrap_path
+    sets: parsed_bootstrap
+    on_parse_failure: raise BROKEN_BOOTSTRAP cause=parse_error
+
+  - id: 3_validate_schema
+    op: check_keys_present
+    target: parsed_bootstrap
+    required_keys: [project, session, tasks, environment, context_file_audit]
+    optional_keys: [decisions, issues, supplemental, supersedes]
+    on_missing_required: raise BROKEN_BOOTSTRAP cause=schema_violation
+
+  - id: 4_validate_integrity
+    op: data_integrity_checks
+    checks:
+      - session.id matches filename timestamp segment
+      - all task ids unique within session
+      - all task session_origins are non-empty
+      - if supplemental==true then supersedes is non-empty session_id
+    on_any_fail: raise BROKEN_BOOTSTRAP cause=integrity_violation
+
+  - id: 5_load_to_memory
+    op: store_in_working_state
+    target: parsed_bootstrap
+
+  - id: 6_compute_counts
+    op: aggregate
+    sets:
+      active_count: count_where(tasks.status == ACTIVE)
+      blocked_count: count_where(tasks.status == BLOCKED)
+      deferred_count: count_where(tasks.status == DEFERRED)
+      decisions_count: count(decisions)  # informational only, not carried forward
+      open_issues_count: count_where(issues.resolution == null)
+      stale_audit_count: count_where(context_file_audit.status != CURRENT)
+
+  - id: 7_compose_briefing
+    op: synthesize
+    forbidden: verbatim_yaml_dump
+    required: condensed_synthesis_per_output_contract
+
+  - id: 8_emit_and_handoff
+    op: output
+    format: per_output_contract
+    handoff: bootstrap-audit
+
+recovery_flow:
+  trigger: any BROKEN_BOOTSTRAP from algorithm steps 1-4 OR start-macro stale-lock-with-missing-bootstrap dispatch
+  steps:
+    - id: R3_review_partial
+      op: read_raw_text_extract_recoverable_sections
+      input: broken_file_path_if_present
+      sets: salvaged_content
+
+    - id: R5_live_dir_recovery
+      op: select_valid_live_dir_bootstrap_then_360_review_then_generate_supplemental
+      recovery_source: "{project_root}/02_working/chat-sessions/bootstrap/"
+      candidate_filter:
+        include: canonical_bootstrap_yaml
+        exclude: [broken_file, supplemental_derivatives_unless_operator_selected]
+      candidate_order: [filename_timestamp_desc, session_ended_desc, file_modified_desc]
+      review_scope: all_available_live_dir_bootstraps_for_360_view
+      output:
+        supplemental_path: "{project_root}/02_working/chat-sessions/bootstrap/{ProjectName}_{BrokenSessionID}S.yaml"
+        supplemental_marker: "supplemental: true; supersedes: <broken_session_id>"
+      verification: run_validate_bootstrap_py_finalized_on_supplemental
+
+    - id: R6_broken_file_disposal
+      op: send_to_recycle_bin
+      input: broken_file_path
+      condition: R5_live_dir_supplemental_written_AND_verification_passed
+      authority: C:/Users/rtoth/.cursor/commands/housekeeping/command.housekeeping.yaml removal_flow
+      forbidden: Remove-Item
+      technique: "(New-Object -ComObject Shell.Application).Namespace(0).ParseName($path).InvokeVerb('delete')"
+
+  no_valid_recovery_candidate_fallback_per_Q6:
+    detect: live dir missing OR contains no valid canonical recovery candidate
+    action: ask_operator_confirm_session_zero_then_signal_bootstrap_init
+    inputs_carried: project_root, project_name
+    carry_forward: none
+    skip: ingest_completion_briefing_for_this_run
+
+  re_entry:
+    after: R5_live_dir_supplemental_written_and_verified
+    action: re_enter_algorithm_at_step_1 with prior_bootstrap_path = supplemental_path
+
+output_contract:
+  format: structured
+  required_fields:
+    file_loaded: filename
+    project_state: {type: string, length: 1-2_sentences}
+    counts:
+      active: integer
+      blocked: integer
+      deferred: integer
+      decisions: integer
+      open_issues: integer
+    active_themes: list_of_strings
+    flagged_attention:
+      blocked_items: list_of_task_ids
+      open_issues: list_of_issue_ids
+      stale_context_files: list_from_prior_audit
+    constraining_decisions: list_of_{id, one_line_outcome}
+    decision_trace:
+      bootstrap_path_used: path
+      bootstrap_file_selected: filename
+      selection_basis: operator_supplied_via_start_macro
+      parse_status: {enum: [ok, failed]}
+      schema_compliance: {enum: [full, partial]}
+      integrity_status: {enum: [ok, failed]}
+      recovery_invoked: boolean
+      supplemental_generated: boolean
+      carry_forward_counts:
+        active: integer
+        blocked: integer
+        deferred: integer
+    next_session_kickoff: verbatim_copy_from_parsed_bootstrap_or_null
+    handoff: ready_for_bootstrap-audit
+
+validation_gates:
+  - id: file_loadable
+    check: prior_bootstrap_path opens for read
+    on_fail: raise BROKEN_BOOTSTRAP
+  - id: yaml_parses
+    check: parsed_bootstrap is non-null mapping
+    on_fail: raise BROKEN_BOOTSTRAP
+  - id: schema_required_keys_present
+    check: all required_keys present in parsed_bootstrap
+    on_fail: raise BROKEN_BOOTSTRAP
+  - id: data_integrity
+    check: all integrity checks pass
+    on_fail: raise BROKEN_BOOTSTRAP
+  - id: synthesis_not_dump
+    check: output is not verbatim YAML serialization
+    on_fail: reject and rewrite
+
+error_policy:
+  BROKEN_BOOTSTRAP:
+    detect: parse OR schema OR integrity failure (Q7)
+    actions:
+      - dispatch_to_recovery_flow
+      - capture_cause: enum [parse_error, schema_violation, integrity_violation, file_not_found]
+      - capture_partial_raw_text_for_R3
+    forbidden:
+      - silent_skip
+      - in_place_repair
+      - reconstruct_from_memory
+
+  NO_VALID_RECOVERY_CANDIDATE:
+    detect: recovery R5 finds no valid live-dir recovery candidate
+    actions:
+      - ask_operator_confirm_session_zero_or_halt
+      - on_YES_apply_Q6_fallback_signal_session_zero_to_init
+      - on_NO_HALT
+      - carry_forward: none
+    forbidden:
+      - pretend_recovery_succeeded
+      - silently_start_session_zero
+
+  SUPPLEMENTAL_VALIDATION_FAILED:
+    detect: validate_bootstrap.py --finalized fails on generated supplemental
+    actions:
+      - HALT
+      - report_to_user_with_validator_errors
+      - request_user_decision: [retry_R5_with_more_context, manual_intervention, treat_as_session_zero]
+    forbidden: dispose_of_broken_original_via_R6
+
+anti_drift:
+  - mandatory_when_path_1_or_path_2_selected
+  - never_scan_directories_to_select
+  - never_substitute_memory_for_file
+  - never_dump_yaml_at_user
+  - never_proceed_to_work_before_audit_and_init_complete
+  - never_silently_fix_broken_in_place
+  - never_remove_item_broken_file_use_recycle_bin_only
+  - never_dispose_of_broken_before_supplemental_verified
+  - never_depend_on_deferred_archive_housekeeping_for_recovery
+  - never_silently_session_zero_when_recovery_has_no_candidate
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_meta_commentary_about_what_will_be_done
+  - never_offer_to_summarize_the_loaded_bootstrap_in_natural_language
+  - never_paraphrase_parsed_bootstrap_content_outside_output_contract
+  - next_session_kickoff_field_if_present_is_verbatim_from_file_not_paraphrased
+  - first_visible_token_must_be_populated_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - BROKEN_BOOTSTRAP_dispatches_to_recovery_not_HALT
+  - decisions_no_longer_required_key_session_scoped_only

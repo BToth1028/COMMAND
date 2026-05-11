@@ -1,0 +1,629 @@
+---
+name: workflow-audit
+description: >-
+  Single-domain workflow auditor. Runs the 8-layer workflow audit framework
+  (Determinism, Reference Integrity, Outcome Achievability, Completeness,
+  Internal Consistency, Scope Coherence, Agent Executability, Structural
+  Quality) over any agent workflow document — YAML prompts, SKILL.md files,
+  markdown runbooks, COMMAND.md files. Invoke as @workflow-audit [<mode>].
+  Audits only — never modifies. The deliverable is an audit report plus a
+  proposal-only remediation plan; execution is handed off to a separate session.
+
+meta:
+  module_type: reference
+  loaded_by: "@audit-engine"
+  canonical_path: 'C:\Users\rtoth\.cursor\commands\audit-engine\references\audit_workflow.yaml'
+  preflight_check: PF-2
+  engine_canonical: 'C:\Users\rtoth\.cursor\commands\audit-engine\COMMAND.md'
+
+owns:
+  - "8 workflow audit layers (L1-DET through L8-STR)"
+  - "50+ workflow-specific check IDs and their fail conditions"
+  - "workflow_format enum (YAML_PROMPT, SKILL_MD, COMMAND_MD, MARKDOWN_RUNBOOK, MIXED, FREEFORM)"
+  - "workflow-specific tier overrides"
+  - "workflow-specific edge cases"
+
+does_not_own:
+  - { item: "audit-mode taxonomy",                                           owner: "@audit-engine" }
+  - { item: "Mode 5 iterative loop (M5-1 through M5-10)",                   owner: "@audit-engine" }
+  - { item: "halt protocols",                                                owner: "@audit-engine" }
+  - { item: "audit_report / finding / iteration / remediation_plan schemas", owner: "@audit-engine" }
+  - { item: "anti-drift safeguards",                                         owner: "@audit-engine" }
+  - { item: "content-type detection or mixed-content dispatch",              owner: "@audit-engine" }
+
+engine_import_note: >
+  This module is embedded within @audit-engine. The engine's COMMAND.md is the
+  source of truth for loop semantics, schemas, and halt protocols and MUST be
+  read before producing any audit report. This module is loaded at PF-2 pre-flight.
+  Step M5-8 is followed by Step M5-8.5 (Solution Determinism Gate) per
+  @audit-engine §"Solution Determinism Gate". Plan items emitted from this
+  module's findings inherit the gate; this module does not redefine it.
+
+existing_skill_note: >
+  This module does NOT alter the existing workflow-auditor skill. That skill still
+  auto-fires on natural-language audit prompts. Use @workflow-audit when you want
+  the engine-based framework explicitly.
+
+invocation:
+  syntax: "@workflow-audit [<mode>]"
+  mode:
+    optional: true
+    values: [full, targeted, post_mortem, diff, iterative]
+    default: iterative
+    default_note: >
+      Iterative is the unconditional default (inherited from @audit-engine).
+      iterative wraps full, post_mortem, or diff via the engine's Mode 5 loop.
+  examples:
+    - { cmd: "@workflow-audit",           note: "iterative (Mode 5) audit; default mode" }
+    - { cmd: "@workflow-audit iterative", note: "explicit iterative override (same as default)" }
+    - { cmd: "@workflow-audit post_mortem", note: "Mode 5 post-mortem on a workflow that failed in production" }
+    - { cmd: "@workflow-audit diff",      note: "Mode 5 diff between two workflow versions" }
+  loaded_by_engine_for: "workflow partition of workflow and mixed-content runs"
+
+mission: >
+  Systematically evaluate any agent workflow document for structural soundness,
+  internal consistency, and real-world executability — surfacing every failure
+  mode BEFORE the user discovers it in production.
+  This module audits workflows. It does not build or modify them.
+  Findings that require workflow reconstruction route to deterministic-prompt-builder
+  (for YAML prompts) or to user action (for other formats). Outputs are audit
+  reports and finding queues — not revised workflows.
+
+authority_model:
+  canonical:
+    - "the workflow document being audited"
+    - "the user's stated intent for it"
+  derived:
+    - "audit report"
+    - "layer scores"
+    - "tier rating"
+    - "finding classifications"
+    - "routing queues"
+    - "remediation plan items"
+  rule: >
+    Never modify the workflow under audit. Never assume intent the user has not
+    stated. If the workflow's purpose is ambiguous, halt and ask before auditing
+    — an audit without a known target is meaningless.
+
+scope:
+  in_scope:
+    - "running the 8-layer workflow audit framework"
+    - "scoring each layer"
+    - "producing an overall tier rating with workflow-specific overrides"
+    - "classifying findings by severity"
+    - "routing findings to remediation paths"
+    - "comparing two workflow versions"
+    - "post-mortem analysis"
+  never:
+    - "rewrite the workflow"
+    - "fix findings directly"
+    - "author new prompts or skills"
+    - "make domain-truth judgments about the workflow's subject matter"
+    - "skip layers"
+    - "soften findings"
+    - "operate without a workflow document loaded"
+
+step_0:
+  title: "Pre-Audit Setup"
+  preflight_note: >
+    Pre-flight is engine-owned. Before STEP 0 runs, the engine's pre-flight
+    verification (PF-1 through PF-6) MUST already have passed. STEP 0 does NOT
+    duplicate pre-flight; it begins after the engine confirms all canonical files
+    and the artifact under audit are loaded. Any pre-flight failure halts with
+    halt_reason: PRE_FLIGHT_FAILURE (see @audit-engine).
+  steps:
+    - step: 1
+      action: "Confirm the workflow document is loaded and readable."
+      on_not_provided: "HALT. Request workflow."
+      on_file_path: "Read the file."
+      on_inline: "Capture it."
+    - step: 2
+      action: "Generate audit_id using format WFA-YYYYMMDD-HHMMSS from current timestamp."
+    - step: 3
+      action: "Identify the workflow format. Record as workflow_format in the audit report."
+      workflow_format_enum:
+        YAML_PROMPT:       "Structured YAML following deterministic-prompt-builder spec"
+        SKILL_MD:          "Skill file with YAML frontmatter + markdown body"
+        COMMAND_MD:        "Cursor command file with YAML frontmatter + markdown body"
+        MARKDOWN_RUNBOOK:  "Markdown instructions without YAML structure"
+        MIXED:             "Combination of formats"
+        FREEFORM:          "Unstructured prose instructions"
+    - step: 4
+      action: "Confirm the workflow's stated intent. Record as stated_intent."
+      sub_steps:
+        - "Extract the mission/objective/purpose statement if present."
+        - "If no mission statement exists: ask the user 'What is this workflow supposed to accomplish?' Do not proceed without this."
+    - step: 5
+      action: "Confirm session mode (full / targeted / post_mortem / diff / iterative)."
+    - step: 6
+      action: "Mode-specific setup."
+      if_post_mortem: "Collect failure description from user."
+      if_diff: "Confirm both versions are loaded."
+    - step: 7
+      action: "Viability gate."
+      condition: "Document contains no instructions, no steps, and no recognizable structure (no headings, no numbered items, no conditional logic)."
+      on_fail: "HALT with finding NOT_A_WORKFLOW. Do not proceed to Layer 1."
+
+vocabulary_note: >
+  Every term used as a severity-bias trigger or scope qualifier —
+  primary_execution_path, downstream_system, primary_use_case, expected_load,
+  long_form_rewriting, single_threaded_synchronous, implicit_knowledge,
+  task_complexity, non_blank_line, junk_drawer, stricter_cap, build_artifact —
+  resolves to its closed definition in @audit-engine §Deterministic vocabulary.
+  This module does NOT redefine these terms locally.
+
+layers:
+
+  - id: L1-DET
+    name: Determinism
+    question: "Given identical inputs, will this workflow produce identical outputs every time?"
+    checks:
+      - id: "1.1"
+        name: "Ambiguous verb scan"
+        closed_trigger_list:
+          - consider
+          - try
+          - attempt
+          - explore
+          - "think about"
+          - "look into"
+          - might
+          - perhaps
+          - maybe
+          - could
+          - "should consider"
+          - various
+          - some
+          - several
+          - "a few"
+          - many
+          - often
+          - "evaluate (when used as directive)"
+          - "assess (when used as directive)"
+          - "review (when not citing a closed procedure)"
+          - "examine (when not citing specific evidence)"
+          - "determine (when no determination criteria given)"
+          - "ensure (when no verification mechanism given)"
+          - generally
+          - typically
+          - usually
+          - mostly
+          - commonly
+          - normally
+          - "in most cases"
+          - "in general"
+        fails_when: "Any token from closed_trigger_list is present in the artifact."
+
+      - id: "1.2"
+        name: "Open enumeration scan"
+        closed_trigger_list:
+          - "etc."
+          - "such as"
+          - "for example"
+          - "including but not limited to"
+          - "and more"
+          - "among others"
+          - "and similar"
+          - "like (as a list opener)"
+          - "things like"
+          - "or so"
+          - "thereabouts"
+          - "approximately (as a quantity hedge)"
+          - "roughly"
+          - "about (as a quantity hedge)"
+          - "and similar items"
+          - "items like"
+          - "things include"
+        trailing_ellipsis_rule: >
+          A trailing … (U+2026 or ...) at the end of a list item that has no
+          closing closed-set citation also fails this check.
+        fails_when: "Any token from closed_trigger_list is present, OR trailing ellipsis rule fires."
+
+      - id: "1.3"
+        name: "Ordering stability"
+        fails_when: "Any list or output sequence without an explicit sort key and direction."
+
+      - id: "1.4"
+        name: "Conditional completeness"
+        fails_when: "Any IF without an ELSE or explicit default. Any branching logic without exhaustive case coverage."
+
+      - id: "1.5"
+        name: "Implicit discretion"
+        closed_phrase_list:
+          - "use your best judgment"
+          - "as appropriate"
+          - "when relevant"
+          - "if necessary"
+        fails_when: "Instructions rely on agent judgment without defined criteria; any phrase from closed_phrase_list is present."
+
+      - id: "1.6"
+        name: "Reproducibility test"
+        fails_when: >
+          Could two different agents reading this workflow independently arrive at
+          different outputs for the same input? If yes → FAIL.
+
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L2-REF
+    name: "Reference Integrity"
+    question: "Do all references in this workflow point to things that actually exist?"
+    verification_limit_note: >
+      The auditor cannot always confirm that an external file or tool exists — it
+      flags references it cannot verify rather than asserting they are broken.
+      Findings use severity UNVERIFIABLE when existence cannot be confirmed and
+      BROKEN when absence can be confirmed.
+    checks:
+      - id: "2.1"
+        name: "File path validation"
+        fails_when: "Any referenced file path cannot be verified as existent or is not qualified (relative paths without a base)."
+      - id: "2.2"
+        name: "Cross-reference validation"
+        fails_when: "References to other skills, prompts, or documents not identified by a concrete locator (name, path, ID)."
+      - id: "2.3"
+        name: "Tool/capability references"
+        fails_when: "References to tools, APIs, or capabilities the executing agent may not have access to."
+      - id: "2.4"
+        name: "Schema references"
+        fails_when: "References to data schemas, field names, or structures not defined within the workflow or a cited source."
+      - id: "2.5"
+        name: "Stale marker scan"
+        fails_when: "References include version numbers, dates, or identifiers that may have changed since authoring."
+      - id: "2.6"
+        name: "Circular reference check"
+        fails_when: "Any reference chain loops back to itself (A → B → C → A)."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L3-OUT
+    name: "Outcome Achievability"
+    question: "Can the stated mission actually be accomplished by following the defined steps?"
+    checks:
+      - id: "3.1"
+        name: "Mission-to-steps coverage"
+        fails_when: "The stated intent requires actions that no step in the workflow addresses."
+      - id: "3.2"
+        name: "Step output chain"
+        fails_when: "A step requires input that no prior step produces (broken data flow)."
+      - id: "3.3"
+        name: "Terminal state reachability"
+        fails_when: "The workflow has no defined end state, or the end state cannot be reached via the defined steps."
+      - id: "3.4"
+        name: "Precondition satisfaction"
+        fails_when: "A step has preconditions that are never guaranteed by prior steps."
+      - id: "3.5"
+        name: "Output contract fulfillment"
+        fails_when: "The final output (if defined) requires fields or data that the workflow never generates."
+    scoring: "score = (checks_passed / 5) × 100. Each check weighted equally."
+
+  - id: L4-CMP
+    name: Completeness
+    question: "Are all paths, errors, and edge cases handled?"
+    checks:
+      - id: "4.1"
+        name: "Error handling coverage"
+        fails_when: "Any step that can fail but has no on_failure, fallback, or error path defined."
+      - id: "4.2"
+        name: "Edge case coverage"
+        mandatory_categories:
+          1: "empty/null input"
+          2: "malformed/corrupt input"
+          3: "boundary values (min/max/zero)"
+          4: "wrong-type input"
+          5: "maximum-size input"
+          6: "minimal-size input"
+          7: "input with missing required fields"
+          8: "input that exactly matches a boundary condition"
+        fails_when: "Workflow does not address ≥ 1 of the 8 mandatory categories. Check each; FAIL if any unaddressed."
+      - id: "4.3"
+        name: "Branch exhaustiveness"
+        fails_when: "Decision points that do not cover all reachable cases."
+      - id: "4.4"
+        name: "Scope boundary handling"
+        fails_when: "No defined behavior for inputs or requests that fall outside the workflow's stated scope."
+      - id: "4.5"
+        name: "Graceful degradation"
+        fails_when: "No defined behavior for partial failures — one of several data sources unavailable, a referenced file missing, a tool returning an error instead of data."
+      - id: "4.6"
+        name: "Exit conditions"
+        fails_when: "No defined mechanism for the agent to halt, escalate, or abort when stuck."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L5-CON
+    name: "Internal Consistency"
+    question: "Does the workflow contradict itself?"
+    checks:
+      - id: "5.1"
+        name: "Gate-state alignment"
+        fails_when: "A validation gate checks for a format or condition that a prior step has already transformed — validating lowercase after a step that uppercases, checking for nulls after a step that provides defaults."
+      - id: "5.2"
+        name: "Example compliance"
+        fails_when: "Provided examples (positive, negative, edge) that would fail the workflow's own validation rules."
+      - id: "5.3"
+        name: "Scope-algorithm alignment"
+        fails_when: "The algorithm contains steps that fall outside declared scope, or the scope declares capabilities the algorithm never exercises."
+      - id: "5.4"
+        name: "Definition consistency"
+        fails_when: "A term is defined differently in two places within the workflow."
+      - id: "5.5"
+        name: "Authority conflict"
+        fails_when: "Multiple canonical sources declared, or derived data treated as canonical."
+      - id: "5.6"
+        name: "Constraint contradiction"
+        fails_when: "Two rules that cannot both be satisfied simultaneously."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L6-SCP
+    name: "Scope Coherence"
+    question: "Does the workflow stay in its lane?"
+    checks:
+      - id: "6.1"
+        name: "Scope declaration exists"
+        fails_when: "No explicit in-scope / out-of-scope / never lists."
+      - id: "6.2"
+        name: "Scope specificity"
+        fails_when: "Scope declarations so broad they impose no real constraint ('handles all user requests')."
+      - id: "6.3"
+        name: "Drift surface area"
+        fails_when: "Number of points where the agent could plausibly be prompted to leave scope, with no guardrails defined."
+      - id: "6.4"
+        name: "Anti-drift mechanisms"
+        fails_when: "No explicit drift prevention (identity anchors, refusal templates, scope-check steps)."
+      - id: "6.5"
+        name: "Companion routing"
+        fails_when: "Workflow does not define where out-of-scope requests should be routed."
+    scoring: "score = (checks_passed / 5) × 100. Each check weighted equally."
+
+  - id: L7-EXE
+    name: "Agent Executability"
+    question: "Can the intended executor actually do what this workflow demands?"
+    checks:
+      - id: "7.1"
+        name: "Context window feasibility"
+        rule: >
+          Estimate total token count: workflow + all referenced files + expected
+          average input. PASS if <80K tokens. PARTIAL if 80K–150K tokens.
+          FAIL if >150K tokens. If token count cannot be estimated, record as
+          PARTIAL with note.
+      - id: "7.2"
+        name: "Tool availability assumptions"
+        fails_when: "The workflow assumes tools (web search, file I/O, code execution, MCP servers) without verifying availability."
+      - id: "7.3"
+        name: "Permission assumptions"
+        fails_when: "The workflow assumes permissions (file write, API access, network access) that may not be granted."
+      - id: "7.4"
+        name: "Multi-turn state assumptions"
+        fails_when: "The workflow assumes the agent retains state across turns or sessions without defining a persistence mechanism."
+      - id: "7.5"
+        name: "Cognitive load assessment"
+        rule: >
+          Count concurrent state slots per the closed state-slot list in
+          @audit-engine §Mode 5 state externalization > Effect on cognitive load.
+          Only S1–S9 count; nothing else qualifies as state.
+          PASS if ≤ 5 slots active.
+          PARTIAL if 6–9 slots active (subagent two-stage scope).
+          FAIL if any non-listed item is treated as a state slot OR > 9 slots active.
+      - id: "7.6"
+        name: "Instruction clarity for zero-context agent"
+        fails_when: "An agent with NO prior context on this project could not execute this workflow. If it requires implicit knowledge, it fails."
+    scoring: "score = (checks_passed / 6) × 100. Each check weighted equally."
+
+  - id: L8-STR
+    name: "Structural Quality"
+    question: "Is the workflow well-organized, navigable, and maintainable?"
+    checks:
+      - id: "8.1"
+        name: "Progressive disclosure"
+        fails_when: "All information frontloaded with no hierarchy; no clear 'read this first, reference that later' structure."
+      - id: "8.2"
+        name: "Section organization"
+        fails_when: "Related instructions scattered across non-adjacent sections."
+      - id: "8.3"
+        name: "Redundancy"
+        fails_when: "Same instruction stated in multiple places (maintenance risk — they will diverge)."
+      - id: "8.4"
+        name: "Length proportionality"
+        fails_when: "Workflow length is disproportionate to task complexity (either bloated or underspecified)."
+      - id: "8.5"
+        name: "Naming clarity"
+        fails_when: "Section names, step names, or variable names don't clearly communicate purpose."
+    scoring: "score = (checks_passed / 5) × 100. Each check weighted equally."
+
+layer_weights:
+  L1-DET: 0.20   # Highest — foundational
+  L2-REF: 0.15
+  L3-OUT: 0.15
+  L4-CMP: 0.15
+  L5-CON: 0.15
+  L6-SCP: 0.08
+  L7-EXE: 0.07
+  L8-STR: 0.05
+  # sum:  1.00
+
+tier_overrides:
+  stack_on_top_of: "universal overrides in @audit-engine"
+  conflict_resolution: "stricter cap wins"
+  overrides:
+    - condition: "Layer 1 (Determinism) has ≥ 2 FAILed checks (i.e. ≥ 2 of the 6 L1 checks scored FAIL individually)"
+      cap: D
+      reason: "Non-deterministic workflows are fundamentally unreliable. A single FAILed L1 check is serious but may be local; two or more constitute systemic non-determinism."
+      threshold_note: >
+        Threshold is at the check level (count of L1 checks with result=FAIL),
+        not at the layer aggregate. PARTIAL counts as 0.5 and does NOT count
+        toward the FAIL count. SKIPPED is excluded entirely.
+    - condition: "Layer 3 (Outcome Achievability) score < 40"
+      cap: D
+      reason: "Workflow cannot achieve its stated purpose."
+
+category_enum:
+  source: "@audit-engine finding schema — no workflow-specific extensions"
+  values:
+    - AMBIGUITY
+    - BROKEN_REF
+    - STALE_REF
+    - UNREACHABLE
+    - UNHANDLED
+    - CONTRADICTION
+    - SCOPE_LEAK
+    - ASSUMPTION
+    - REDUNDANCY
+    - STRUCTURAL
+    - UNVERIFIABLE
+
+edge_cases:
+  empty_document:
+    condition: "Workflow has frontmatter but no body, or body has no instructions."
+    action: "HALT at Step 0 viability gate. Emit finding NOT_A_WORKFLOW."
+
+  oversized_document:
+    condition: "Workflow exceeds 3,000 lines or estimated 100K tokens."
+    action: >
+      Proceed with audit but add ADVISORY finding in L8-STR noting size.
+      If token count risks context window overflow during audit, split into two passes:
+      Layers 1–4 first, then Layers 5–8 with findings summary from the first pass
+      carried forward.
+
+  non_english_workflow:
+    condition: "Workflow is written in a language other than English."
+    action: >
+      Proceed with audit. Checks 1.1 (ambiguous verb scan) and 1.2 (open enumeration
+      scan) use English-language markers only — SKIP these checks and note language
+      limitation. All structural checks (Layers 2–8) apply regardless of language.
+
+  self_referential_workflow:
+    condition: "Workflow references itself (an auditor module auditing itself)."
+    action: >
+      Proceed normally. The audit evaluates structural quality, not domain recursion.
+      Note in decision_trace.auditor_notes that the workflow is self-referential.
+
+  minimal_prose_only:
+    condition: "Workflow is a single paragraph or short block of prose."
+    action: >
+      Record format as FREEFORM. Many checks will produce PARTIAL or FAIL due to lack
+      of structure. This is expected — the score reflects the workflow's actual quality,
+      not a format penalty.
+
+  syntax_errors:
+    condition: "YAML frontmatter has syntax errors, or markdown is malformed."
+    action: >
+      Record a CRITICAL finding in L2-REF. If the workflow is still readable despite
+      syntax errors, proceed with audit on the readable portions. If unreadable, invoke
+      layer-failure protocol (engine).
+
+  workflow_with_no_stated_purpose:
+    condition: "No mission/objective found AND user declines to provide one."
+    action: >
+      HALT. An audit without a target cannot evaluate outcome achievability (Layer 3).
+      Record in decision_trace and exit cleanly.
+
+  workflow_includes_significant_code:
+    condition: "Workflow contains fenced code blocks ≥ 20 non-blank lines or with declared runnable language."
+    action: >
+      The input is mixed-content. RECOMMEND user invoke @audit-engine mixed instead of
+      @workflow-audit alone. If user insists on workflow-only audit, proceed but note in
+      decision_trace that the embedded code was treated as opaque text and was NOT
+      audited against L1-COR through L8-STR layers owned by @code-audit.
+
+error_policy:
+  - { condition: "No workflow document provided",                   action: "HALT. Request workflow. Do not audit nothing." }
+  - { condition: "Workflow purpose ambiguous",                       action: "HALT. Ask user to state intent. Do not audit without a target." }
+  - { condition: "Cannot verify an external reference",             action: "Record as UNVERIFIABLE finding (not BROKEN). Note verification limits." }
+  - { condition: "Workflow format unrecognizable",                   action: "Record format as FREEFORM. Proceed. Note that format-specific checks will be SKIPPED." }
+  - { condition: "Layer produces ambiguous result",                  action: "Record as PARTIAL. Include both interpretations in the finding. Never round up." }
+  - { condition: "User asks to skip a layer in Mode 1 (FULL)",      action: "Refuse. Offer Mode 2 (TARGETED) instead. A FULL audit with skipped layers is a lie." }
+  - { condition: "Out-of-scope request (fix this, rewrite, improve)", action: "Emit structured refusal. Route to appropriate command or user action." }
+
+output_contract:
+  note: "Base audit_report and finding schemas owned by @audit-engine."
+  domain: WORKFLOW
+  audit_id_prefix: "WFA-"
+  artifact_format_field: "one of the workflow_format enum values"
+  layers_mode_1_and_5: "exactly 8 entries (L1-DET through L8-STR)"
+  layers_mode_2: "subset per user-specified target"
+  mode_5_note: >
+    In Mode 5, the engine's iteration block and remediation_plan block apply verbatim.
+    The Mode 5 procedure (M5-1 through M5-10) is owned by the engine; this module
+    supplies the layer set and check definitions that each granular pass executes.
+    Plan items MUST carry a determinism_certification block (engine-owned schema,
+    closed-shape, see @audit-engine §"Solution Determinism Gate"). This module
+    does not redefine the gate.
+
+companion_commands:
+  - name: "@audit-engine"
+    path: 'C:\Users\rtoth\.cursor\commands\audit-engine\COMMAND.md'
+    role: "Orchestrator. Owns the loop semantics. Required reading before any audit."
+  - name: "references/audit_code.yaml"
+    path: 'C:\Users\rtoth\.cursor\commands\audit-engine\references\audit_code.yaml'
+    role: "Sibling code-domain module. Loaded by @audit-engine for the code partition of mixed-content runs."
+  - name: "deterministic-prompt-builder"
+    type: skill
+    role: "Construction skill for YAML prompts. Plan items with routing == PROMPT_BUILDER are listed under remediation_plan.prompt_builder_substeps. The executor session invokes this, NOT the auditor."
+  - name: "ontology-axiom-compliance"
+    type: skill
+    status: "planned — not yet registered; recommendation only"
+    role: >
+      IF the workflow under audit governs an ontology system (schema definitions,
+      entity relationships, constraint enforcement) → recommend axiom-level compliance
+      audit in a separate session once the skill is registered. Until then, surface
+      the recommendation as an ADVISORY finding in decision_trace.auditor_notes rather
+      than routing to a non-existent skill. ELSE → skip.
+  - name: "context-bootstrap"
+    type: command
+    role: "Session continuity. Mode 5 always crosses sessions, so a bootstrap entry is required at handoff."
+
+procedure_summary: |
+  INVOCATION: @workflow-audit [<mode>]
+              (or loaded by @audit-engine on workflow partition;
+               canonical: audit-engine/references/audit_workflow.yaml)
+
+  STEP 0:  Pre-Audit Setup
+           → Load workflow → Generate audit_id (WFA-...) → Identify format
+           → Confirm intent → Select mode → Run viability gate
+
+  STEP 1:  Execute Audit Layers 1–4 (foundational checks)
+           For each layer (L1-DET, L2-REF, L3-OUT, L4-CMP):
+             → Run all checks (engine per-check error protocol applies)
+             → Record findings
+             → Calculate layer score
+             → If layer cannot complete → invoke engine layer-failure protocol
+
+  CHECKPOINT: Summarize Layers 1–4 findings before continuing.
+
+  STEP 2:  Execute Audit Layers 5–8 (structural checks)
+           For each layer (L5-CON, L6-SCP, L7-EXE, L8-STR):
+             → Run all checks
+             → Record findings
+             → Calculate layer score
+
+  STEP 3:  Calculate overall score and tier
+           → Weighted average with layer_weights
+           → Apply universal overrides (engine) + tier_overrides (this module)
+           → Stricter cap wins on conflict
+
+  STEP 4:  Classify and route findings
+           → Severity per engine severity_definitions
+           → Sort: severity DESC, layer order ASC
+           → Routing (PROMPT_BUILDER | USER_ACTION | INFORMATIONAL)
+
+  STEP 5:  Assemble report
+           → Populate audit_report (engine schema)
+           → domain = WORKFLOW; audit_id = WFA-...
+
+  STEP 6:  Present to user
+           → Deliver the audit report
+           → Offer: "Want me to drill into any specific layer or finding?"
+           → If post_mortem: present root_cause mapping
+           → If diff: present comparative table
+           → If iterative (Mode 5): proceed per engine M5 procedure
+
+  STEP 7:  Route on user confirmation
+           → User confirms routing queues
+           → Findings routed to companion commands or user action
+
+  MODE 5:  Steps M5-1 through M5-10 are owned by @audit-engine.
+           Each granular pass (M5-3) runs all 8 workflow layers per the
+           engine's per-check protocol. Element boundary for M5-3 is:
+             1. Numbered/lettered list item
+                (regex: ^\s*(\d+|[A-Za-z]|[ivxIVX]+)[\.\)]\s+)
+             2. Markdown heading section (#…######)
+             3. Fenced code block
+             4. Prose paragraph
+           (Use the first matching level; never blend levels.)

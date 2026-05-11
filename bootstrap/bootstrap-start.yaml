@@ -1,0 +1,314 @@
+instructions_md: |
+  # bootstrap-start (agent prose)
+
+  You are running the session-start macro. Bootstrap selection is
+  operator-driven — the agent NEVER auto-selects a bootstrap. You execute
+  three sub-commands in strict order after the operator-driven selection
+  resolves. Stop at the first failure and report which sub-command halted.
+
+  ## Pre-flight: operator-driven selection (Section B.3 dialog)
+
+  Determine which of three deterministic paths applies BEFORE invoking ingest.
+  No ingest fires until either a specific path is in hand OR the operator has
+  explicitly confirmed an agent suggestion OR session-zero is declared.
+
+  1. **Path 1 — specific bootstrap path supplied.** If the operator's
+     start-message contains an `@`-reference, pasted absolute path, or
+     explicit filename pointing at a prior bootstrap YAML, set
+     `prior_bootstrap_path = <supplied>`. Derive `project_root` from the
+     supplied file path by taking the fourth parent above the file:
+     file -> bootstrap -> chat-sessions -> 02_working -> project_root.
+     After ingest loads the file, if `next_session_kickoff` is present on
+     disk, use it as the authoritative kickoff envelope for the new session
+     (read `read_first`, honor `frozen_intent`, do not request extra
+     documentation except when a HALT in `do_not_request_from_operator_unless`
+     applies).
+     Proceed to ingest with that path.
+
+  2. **Path 2 — existing project, no specific bootstrap.** If the operator
+     names an existing project but no specific file:
+     - Confirm or prompt for `project_root` (absolute path per Q4).
+     - Run lock check (Scenario 2.2 in `recovery_protocol`). If a `.lock`
+       file is present, prompt the operator: remove or halt? On YES remove
+       lock and continue; if no bootstrap exists for that locked session,
+       dispatch to recovery. On NO halt entirely (Q5).
+     - Inspect `{project_root}/02_working/chat-sessions/bootstrap/` for
+       canonical bootstraps (`{Project}_YYMMDD-HHMM.yaml`, ignoring
+       supplemental `S` suffix and other derivatives).
+     - If multiple loose bootstraps (Q3), list all and let the operator pick.
+     - If exactly one candidate exists, propose it using Q1 wording exactly:
+       `Found {filename} (session {session_id}, ended {iso_timestamp}). Continue this session?`
+       Await explicit operator confirmation. Do NOT pick autonomously.
+     - If zero candidates exist, ask:
+       `No canonical bootstrap found under {project_root}/02_working/chat-sessions/bootstrap/. Start session-zero for this project?`
+       On YES set `session_zero_flag = true` and invoke init. On NO halt.
+
+  3. **Path 3 — session-zero (new project or no prior bootstrap).** If the
+     operator declares a new project OR confirms no prior bootstrap exists:
+     - Prompt for `project_name`.
+     - Prompt for `project_root` (absolute path per Q4).
+     - Set `session_zero_flag = true`.
+     - Skip ingest entirely; invoke init directly with the session-zero flag.
+
+  ## Steps (post-selection)
+
+  When invoked by `bootstrap-start`, constituent subcommands run as internal
+  silent steps. Suppress standalone atomic command contracts and emit only
+  the aggregate output contract. When an atomic command is invoked directly,
+  it emits its own output contract.
+
+  1. If selection resolved to Path 1 or Path 2 with a prior bootstrap path:
+     run `bootstrap-ingest` with
+     the resolved `prior_bootstrap_path`. Capture its output.
+     If ingest detects a broken bootstrap (per Q7) or a stale lock with
+     missing bootstrap, ingest dispatches to recovery; recovery may produce
+     a supplemental bootstrap that is then ingested. Capture final output.
+  2. If ingest halted, STOP. Surface the halt verbatim. Do not continue.
+  3. Run `bootstrap-audit`, passing the parsed prior bootstrap from step 1.
+     (Skip for Path 3 session-zero — no prior to audit.)
+  4. If audit halted, STOP. Report that ingest succeeded but audit did not,
+     and that the session is NOT ready for work.
+  5. Run `bootstrap-init`, passing the parsed prior bootstrap (or null for
+     session-zero), the current timestamp, the audit results (or null), the
+     session_zero flag, and `project_root`.
+  6. If init halted, STOP. Report the init halt verbatim and the completion
+     state of ingest and audit (each omitted, succeeded, or failed as applicable).
+  7. Combine all outputs into the aggregated output contract. Emit it.
+
+  ## Hard rules
+
+  - Agent NEVER auto-selects a bootstrap. Operator picks or confirms, always.
+  - Halt is preferred over guessing.
+  - Never skip a sub-command for any reason once selection has resolved.
+  - Never continue past a halt.
+  - Never invent aggregated state or fabricate missing sub-command output.
+  - The first thing you emit AFTER selection resolution must be the
+    populated aggregated output contract — no preamble, no narration, no
+    acknowledgment, no plan-of-action text.
+  - Pre-flight selection MAY emit clarifying questions to the operator.
+    Once selection resolves, all output is structured per contract.
+  - If the user requests you to skip a sub-command, refuse and explain that
+    the macro must complete in full.
+
+command: bootstrap-start
+phase: 1
+step: macro
+type: macro
+invokes_after: null
+invokes_before: null
+governed_by: COMMAND.md
+mission: orchestrate the operator-driven selection dialog then the full session-start sequence
+
+scope:
+  - operator-driven dialog to resolve prior_bootstrap_path OR session-zero
+  - lock check for Scenario 2.2 prior to ingest
+  - sequential execution of bootstrap-ingest, bootstrap-audit, bootstrap-init
+  - dispatch to recovery flow on broken-bootstrap or stale-lock-with-missing-bootstrap
+  - halt on any sub-command HALT condition
+  - aggregate sub-command outputs
+
+non_scope:
+  - any logic beyond selection orchestration
+  - autonomous bootstrap selection
+  - mid-session updates (use bootstrap-checkpoint)
+  - session end (use bootstrap-finalize)
+  - skipping any sub-command after selection resolved
+
+authority:
+  canonical: same_as_constituent_commands
+  on_conflict: same_as_constituent_commands
+  selection_authority: operator_driven_never_autonomous
+
+inputs:
+  required:
+    current_timestamp: ISO_8601
+  operator_supplied_one_of:
+    prior_bootstrap_path: absolute path to specific prior bootstrap YAML  # Path 1
+    project_root_existing: absolute path to existing project root         # Path 2
+    session_zero_declaration: boolean true                                 # Path 3
+  optional:
+    project_name: string  # required for Path 3, derivable from filename for Path 1
+  passes_through_to: [bootstrap-ingest, bootstrap-audit, bootstrap-init]
+
+algorithm:
+  - id: 0_resolve_selection
+    op: dialog_per_B_3
+    output:
+      selected_path: enum [path_1_specific, path_2_existing, path_3_session_zero]
+      prior_bootstrap_path: path_or_null
+      project_root: path
+      project_name: string
+      session_zero_flag: boolean
+      no_candidate_decision: enum [not_applicable, operator_confirmed_session_zero, operator_declined]
+    on_HALT: halt_macro_and_surface
+
+  - id: 0_5_lock_check
+    condition: selected_path == path_2_existing
+    op: check_for_lock_in_live_dir
+    on_lock_present: prompt_operator_remove_or_halt_per_Q5
+    on_no_bootstrap_after_lock_removed: dispatch_to_recovery_R5
+
+  - id: 0_6_no_candidate_resolution
+    condition: selected_path == path_2_existing AND prior_bootstrap_path == null
+    op: ask_operator_start_session_zero_or_halt
+    prompt: "No canonical bootstrap found under {project_root}/02_working/chat-sessions/bootstrap/. Start session-zero for this project?"
+    on_YES:
+      set:
+        selected_path: path_3_session_zero
+        session_zero_flag: true
+        no_candidate_decision: operator_confirmed_session_zero
+    on_NO: HALT no_candidate_operator_declined
+
+  - id: 1_invoke_ingest
+    condition: selected_path in [path_1_specific, path_2_existing]
+    op: execute_subcommand
+    target: bootstrap-ingest
+    inputs:
+      prior_bootstrap_path: prior_bootstrap_path
+      project_root: project_root
+    captures: ingest_output
+    on_broken_or_missing: ingest_dispatches_to_recovery_internally
+    on_HALT: halt_macro_and_surface
+
+  - id: 2_invoke_audit
+    condition: selected_path != path_3_session_zero
+    op: execute_subcommand
+    target: bootstrap-audit
+    inputs:
+      project_root: project_root
+      parsed_prior_bootstrap: ingest_output.parsed_bootstrap
+    captures: audit_output
+    on_HALT: halt_macro_and_surface
+
+  - id: 3_invoke_init_session_zero
+    condition: selected_path == path_3_session_zero
+    op: execute_subcommand
+    target: bootstrap-init
+    inputs:
+      parsed_prior_bootstrap: null
+      current_timestamp: current_timestamp
+      audit_results: null
+      session_zero_flag: true
+      project_root: project_root
+      project_name: project_name
+    captures: init_output
+    on_HALT: halt_macro_and_surface
+
+  - id: 3_invoke_init_with_prior
+    condition: selected_path != path_3_session_zero
+    op: execute_subcommand
+    target: bootstrap-init
+    inputs:
+      parsed_prior_bootstrap: ingest_output.parsed_bootstrap
+      current_timestamp: current_timestamp
+      audit_results: audit_output
+      session_zero_flag: session_zero_flag
+      project_root: project_root
+      project_name: project_name
+    captures: init_output
+    on_HALT: halt_macro_and_surface
+
+  - id: 4_aggregate_and_emit
+    op: combine_outputs
+    inputs:
+      ingest_output_or_null: from_1_invoke_ingest_or_null_when_path_3
+      audit_output_or_null: from_2_invoke_audit_or_null_when_path_3
+      init_output: init_output
+      selection_metadata: selection_metadata
+    format: per_output_contract
+
+output_contract:
+  format: aggregated
+  required_fields:
+    selection_path: "enum: [path_1_specific, path_2_existing, path_3_session_zero]"
+    sequence_completed: list_of_subcommands_actually_executed
+    ingest_summary: pass_through_of_bootstrap_ingest_output_contract_or_null_for_session_zero
+    audit_summary: "{files_audited, flagged_count} or null_for_session_zero"
+    init_summary:
+      new_session_id: string
+      carry_forward_counts: object
+    decision_trace:
+      sub_commands_executed: integer
+      any_halts: boolean
+      session_zero: boolean
+      recovery_invoked: boolean
+      supplemental_generated: boolean
+    status: ready_for_project_work
+    next_actions:
+      - bootstrap-checkpoint_will_fire_on_event_triggers
+      - bootstrap-finalize_required_at_session_end
+
+validation_gates:
+  - id: selection_resolved
+    check: selected_path is one of the three deterministic enums
+    on_fail: HALT operator_input_required
+  - id: subcommands_completed_per_path
+    check: all subcommands required for selected_path completed non-null
+    on_fail: HALT report_which_subcommand_failed
+  - id: handoff_chain_intact
+    check: each output fed correctly to next subcommand
+    on_fail: HALT investigate_orchestration
+  - id: no_candidate_handled
+    check: path_2_existing with zero candidates always has operator YES or NO decision
+    on_fail: HALT operator_input_required
+  - id: macro_visibility_boundary
+    check: aggregate output only when invoked as bootstrap-start; atomic output contract only when invoked directly
+    on_fail: HALT output_contract_conflict
+
+error_policy:
+  SUB_COMMAND_HALT:
+    detect: any subcommand halted
+    actions:
+      - surface_subcommand_error_verbatim
+      - stop_macro
+    forbidden: continue_to_next_subcommand
+
+  PARTIAL_COMPLETION:
+    detect: ingest succeeded but audit failed (or similar)
+    actions:
+      - report: what_completed_and_what_did_not
+      - note: bootstrap-init_was_NOT_run
+      - note: session_NOT_ready_for_work
+      - request_user_decision
+
+  SELECTION_AMBIGUOUS:
+    detect: operator input does not match any of the three deterministic paths
+    actions:
+      - surface_three_path_choices_to_operator
+      - await_explicit_selection
+    forbidden: guess_or_pick_default
+
+  NO_CANDIDATE_BOOTSTRAP:
+    detect: existing project live dir has zero canonical bootstrap candidates
+    actions:
+      - ask_operator_start_session_zero_or_halt
+      - on_YES_set_session_zero_flag_and_invoke_init
+      - on_NO_halt
+    forbidden:
+      - automatic_session_zero
+      - autonomous_bootstrap_selection
+
+  LOCK_PRESENT:
+    detect: .lock file in live dir during Path 2 lock check
+    actions:
+      - prompt_operator: "lock present for session {session_id} — remove and continue, or halt?"
+      - on_YES_remove_lock_and_check_for_corresponding_bootstrap
+      - on_NO_halt_per_Q5
+
+anti_drift:
+  - never_auto_select_a_bootstrap
+  - never_skip_pre_flight_selection_dialog
+  - never_continue_past_a_HALT
+  - never_invent_aggregated_state
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text_AFTER_selection_resolves
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_progress_chatter_between_subcommands_post_selection
+  - never_skip_lock_check_for_path_2
+  - never_auto_session_zero_on_zero_candidates
+  - macro_invocation_suppresses_atomic_visible_contracts
+  - direct_atomic_invocation_emits_atomic_contract
+  - first_visible_token_post_selection_must_be_populated_aggregated_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - selection_dialog_questions_to_operator_are_permitted_pre_resolution_only

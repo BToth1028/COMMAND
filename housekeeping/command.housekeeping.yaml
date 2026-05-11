@@ -1,0 +1,511 @@
+command: housekeeping
+type: atomic
+phase: independent
+invokes_after: null
+invokes_before: null
+governed_by: null
+mission: review session-touched files and stale candidates, then propose retain/relocate/rename/recycle-bin removal per file with user approval
+
+dependencies:
+  para-ontology:
+    role: classification_and_canonical_placement_authority
+    invocation_point: per_file_during_check_pipeline
+    fallback_if_unavailable: halt_classification_step_and_request_user_input
+
+integrations:
+  bootstrap-checkpoint:
+    condition: mode == integrated
+    mechanism:
+      - per_decision_record:
+          op: invoke_command
+          target: bootstrap-checkpoint
+          trigger: event
+          trigger_payload:
+            event: decision-made
+            decision: record
+      - per_audit_update:
+          op: direct_mutation
+          target: in_memory_bootstrap.context_file_audit
+          merge_strategy: filename_key_overwrite
+    rationale: keeps housekeeping decisions in the canonical session record
+
+scope:
+  - enumerate session-touched files (created or modified this session)
+  - search folder structures for old or stale looking files when cross_session_sweep is enabled
+  - run multi-check pipeline per file
+  - propose action per file with justification
+  - present proposals to user for approval
+  - perform in-depth second review before any approved removal
+  - execute approved actions
+  - emit decision and audit records
+  - integrate with in-memory bootstrap if present and unfinalized
+  - emit git command suggestions if git_integration enabled and repo present
+
+non_scope:
+  - finalizing the bootstrap (bootstrap-finalize handles that)
+  - modifying or deleting any file without explicit user approval
+  - PARA classification logic itself (delegated to para-ontology skill)
+  - reorganizing files outside session scope unless cross_session_sweep enabled
+  - rewriting content of files (only relocate, rename, or remove)
+  - permanent deletion
+  - Remove-Item, shift-delete, or any irreversible deletion technique
+
+authority:
+  canonical:
+    file_existence: workspace_filesystem
+    classification_logic: para-ontology_skill
+    canonical_placement: para-ontology_skill
+    naming_convention: project_documented_convention_or_skip
+    user_approval: required_for_all_destructive_or_modification_actions
+    removal_process: this_housekeeping_command
+  on_conflict: user_decision_wins
+
+inputs:
+  required:
+    workspace_root: path
+    project_name: string
+  optional:
+    in_memory_bootstrap: {type: object_or_null, default: null}
+    cross_session_sweep: {type: boolean, default: false}
+    approval_mode: {type: enum, values: [per_file, batch], default: per_file}
+    removal_destination: {type: enum, values: [desktop_recycle_bin], default: desktop_recycle_bin}
+    git_integration: {type: boolean, default: true}
+    explicit_file_list: {type: list_of_paths, default: null}
+    stub_threshold_chars: {type: integer, default: 50}
+    duplicate_overlap_threshold: {type: float_0_to_1, default: 0.85}
+  derived:
+    mode: integrated_if_bootstrap_present_and_session_ended_null_else_standalone
+    session_id: in_memory_bootstrap.session.id or current_timestamp_YYMMDD-HHMM
+    naming_convention: project_documented_or_null
+  ignored:
+    - files_outside_workspace_root
+    - bootstrap_files_themselves
+    - hidden_files_unless_explicitly_targeted
+    - .git_internal_files
+
+removal_flow:
+  purpose: gated removal of stale or obsolete files via OS desktop recycle bin
+  destinations:
+    approved_removal: OS desktop recycle bin
+  permitted_techniques:
+    recycle_bin:
+      - "(New-Object -ComObject Shell.Application).Namespace(0).ParseName($path).InvokeVerb('delete')"
+      - "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($path, 'OnlyErrorDialogs', 'SendToRecycleBin')"
+  forbidden_techniques:
+    - Remove-Item
+    - shift-delete
+    - delete_permanently
+    - any irreversible deletion
+  operator_decline_triggers:
+    - "no"
+    - "nevermind"
+    - any back-down statement
+  operator_approval_triggers:
+    - "Approved"
+    - "proceed"
+    - any explicit greenlight
+  invariants:
+    - never remove a file after only cursory review
+    - never bypass the first operator decision
+    - never bypass the second operator decision if in-depth review surfaces new information
+    - recycle-bin removal is the only permitted removal destination
+    - no permanent deletion is permitted
+
+algorithm:
+  - id: 1_detect_mode
+    op: conditional
+    branches:
+      - if: in_memory_bootstrap != null AND in_memory_bootstrap.session.ended == null
+        then: set mode = integrated
+      - else: set mode = standalone
+    sets: mode
+
+  - id: 2_resolve_session_id
+    op: conditional
+    branches:
+      - if: mode == integrated
+        then: set session_id = in_memory_bootstrap.session.id
+      - else: set session_id = format_timestamp(now, "YYMMDD-HHMM")
+
+  - id: 3_enumerate_candidate_files
+    op: collect
+    sources_in_priority_order:
+      - explicit_file_list (if provided, use exclusively)
+      - workspace_files_with_mtime_after_session_start
+      - files_referenced_in_completed_tasks (if integrated mode)
+    if_cross_session_sweep:
+      additional_sources:
+        - old_or_stale_looking_files_found_by_folder_structure_search
+        - files_in_non_canonical_locations
+        - files_flagged_STALE_in_prior_context_file_audit
+    sets: candidate_files
+    deduplicate: true
+    on_empty: emit empty_review_summary and exit
+
+  - id: 4_run_check_pipeline
+    op: iterate_per_file
+    input: candidate_files
+    checks_in_order:
+      - id: a_stub_check
+        op: measure_content_size
+        threshold: stub_threshold_chars
+        sets: is_stub (boolean)
+      - id: b_duplicate_check
+        op: content_overlap_scan
+        compare_against: workspace_existing_files
+        threshold: duplicate_overlap_threshold
+        sets: duplicate_of (filename_or_null), overlap_score (float)
+      - id: c_inbound_reference_scan
+        op: scan_workspace_for_references_to_this_file
+        sets: incoming_references (list_of_paths_with_line_numbers)
+      - id: d_para_classification
+        op: invoke_skill
+        target: para-ontology
+        input_fields: [filename, content_summary, current_location]
+        sets: para_class (PROJECT|AREA|RESOURCE|ARCHIVE), canonical_path
+        on_skill_unavailable: raise PARA_SKILL_UNAVAILABLE
+      - id: e_naming_compliance
+        op: validate_against_convention
+        input: filename
+        convention: naming_convention
+        sets: name_compliant (boolean), proposed_rename (string_or_null)
+        on_no_convention: skip and set name_compliant = null
+      - id: f_location_compliance
+        op: compare_paths
+        inputs: {current: file.path, canonical: canonical_path}
+        sets: location_compliant (boolean), proposed_move (path_or_null)
+      - id: g_cursory_relevance_review
+        op: read_enough_to_identify_obvious_relevance_or_importance
+        sets: cursory_review_note (string), obvious_keep_reason (string_or_null)
+    sets: file_assessments
+
+  - id: 5_generate_proposals
+    op: derive_proposal_per_file
+    input: file_assessments
+    decision_table:
+      - if: is_stub == true
+        propose: REMOVE
+        justification_template: "stub file ({size} chars < {threshold}); never populated this session"
+      - if: duplicate_of != null AND overlap_score >= 0.95
+        propose: REMOVE
+        justification_template: "near-identical to {duplicate_of} (overlap {overlap_score})"
+      - if: duplicate_of != null AND overlap_score < 0.95
+        propose: MERGE_OR_REMOVE
+        justification_template: "significant overlap with {duplicate_of} ({overlap_score}); user choice required"
+      - if: location_compliant == false AND name_compliant == false
+        propose: RELOCATE_AND_RENAME
+        justification_template: "PARA classifies as {para_class}; canonical path is {canonical_path}; current name violates {convention_rule}"
+      - if: location_compliant == false
+        propose: RELOCATE
+        justification_template: "PARA classifies as {para_class}; currently at {current_location}; canonical path is {canonical_path}"
+      - if: name_compliant == false
+        propose: RENAME
+        justification_template: "current name violates {convention_rule}; proposed: {proposed_rename}"
+      - else:
+        propose: KEEP_AS_IS
+        justification_template: "PARA classifies as {para_class}; correctly placed at {canonical_path}; naming compliant"
+    each_proposal_emits:
+      - file: path
+      - action: enum
+      - justification: string_with_specific_facts_not_generic
+      - cursory_review_note: string
+      - downstream_effects:
+          reference_updates_required: list_of_files
+          bootstrap_decision_will_be_logged: boolean
+      - user_choices: [approve, modify, reject, defer]
+    sets: proposals
+
+  - id: 6_present_for_approval
+    op: emit_proposals_and_block
+    format_per: approval_mode
+    block_until: user_response_received
+    capture:
+      target: user_decisions
+      per_file_fields: [decision, modifications_if_any]
+    sets: approved_actions
+
+  - id: 7_pre_execution_safety_check
+    op: validate_each_approved_action
+    checks:
+      - if action in [REMOVE, MERGE]: require explicit_acknowledgment if incoming_references non-empty
+      - if action == REMOVE: require removal_destination == desktop_recycle_bin
+      - if action == REMOVE: require user decision matches approval trigger
+      - if action == REMOVE: perform in_depth_review before execution
+      - if action == REMOVE AND in_depth_review surfaces reconsideration_info: re-present findings and require second explicit approval
+    on_fail: re-prompt_user_for_specific_action
+
+  - id: 7_5_in_depth_removal_review
+    op: conditional_second_pass_for_approved_removals
+    input: approved_actions where action == REMOVE
+    steps:
+      - read_full_candidate_or_relevant_sections_deeply
+      - re-run inbound_reference_scan
+      - inspect nearby files and naming context
+      - check whether file is referenced by active tasks, context audit, scripts, docs, commands, or configuration
+      - classify outcome as no_use_confirmed OR new_info_warrants_reconsideration
+    branches:
+      - if: outcome == no_use_confirmed
+        then: allow_recycle_bin_execution
+      - if: outcome == new_info_warrants_reconsideration
+        then:
+          - surface additional findings to operator
+          - block_until operator either approves_anyway or holds
+          - if operator approves_anyway: allow_recycle_bin_execution
+          - if operator holds: remove from approved_actions and resume regular activities
+
+  - id: 8_execute_approved_actions
+    op: apply_per_action
+    actions:
+      RELOCATE:
+        - move_file: {from: current, to: canonical_path}
+        - update_inbound_references: rewrite_paths_in_referencing_files
+      RENAME:
+        - rename_file: {from: current_name, to: proposed_rename}
+        - update_inbound_references: rewrite_names_in_referencing_files
+      RELOCATE_AND_RENAME:
+        - combined_atomic_op
+        - update_inbound_references
+      REMOVE:
+        - send_to_desktop_recycle_bin
+        - if incoming_references non_empty: emit_warning_per_referencing_file
+      MERGE:
+        - request_user_merge_strategy
+        - apply_merge: write_merged_content_to_target
+        - remove_source: via desktop_recycle_bin_after_removal_flow
+      KEEP_AS_IS:
+        - no_action
+    on_individual_failure:
+      - log_failure
+      - continue_with_remaining
+      - report_at_end
+    sets: applied_actions, failed_actions
+
+  - id: 9_compose_decision_records
+    op: synthesize
+    input: applied_actions
+    one_record_per_action_other_than_KEEP_AS_IS: true
+    record_format:
+      id: next_available_D_NNN
+      session_origin: session_id
+      domain: housekeeping
+      outcome: "{action} {file}: {result}"
+      rationale: must_pass_zero_context_test_per_skill_rules
+      supersedes: null
+    sets: decision_records
+
+  - id: 10_compose_audit_updates
+    op: derive_context_file_audit_entries
+    input: applied_actions
+    rules:
+      - if: action == KEEP_AS_IS
+        emit:
+          filename: file
+          status: CURRENT
+          note: null
+      - if: action in [RELOCATE, RENAME, RELOCATE_AND_RENAME]
+        emit:
+          filename: new_path
+          status: CURRENT
+          note: "relocated_or_renamed_during_housekeeping_{session_id}"
+      - if: action == REMOVE
+        emit:
+          filename: original_path
+          status: REMOVED
+          note: "sent_to_desktop_recycle_bin_during_housekeeping_{session_id}"
+    sets: audit_updates
+
+  - id: 11_branch_integrate_or_emit
+    op: conditional
+    branches:
+      - if: mode == integrated
+        then:
+          - for_each decision_record:
+              op: invoke_command
+              target: bootstrap-checkpoint
+              trigger: event
+              trigger_payload: {event: decision-made, decision: decision_record}
+          - for_each audit_update:
+              op: direct_mutation
+              target: in_memory_bootstrap.context_file_audit
+              merge_strategy: filename_key_overwrite
+          - emit summary_with_integration_confirmation
+      - else:
+          - emit decisions_and_audit_for_user_to_capture_manually
+          - note_in_output: standalone_mode_no_bootstrap_integration
+
+  - id: 12_emit_git_hints
+    op: conditional
+    branches:
+      - if: git_integration == true AND .git_directory_exists
+        then: emit_git_command_suggestions_per_action
+        suggestions_format:
+          RELOCATE: "git mv {from} {to}"
+          RENAME: "git mv {from} {to}"
+          REMOVE: "git rm {file}"
+          KEEP_AS_IS: "git add {file}  # if untracked"
+      - else: skip and note in output
+
+  - id: 13_emit_final_summary
+    op: output
+    format: per_output_contract
+
+output_contract:
+  format: structured
+  required_fields:
+    mode: {enum: [integrated, standalone]}
+    session_id: string
+    files_reviewed: integer
+    proposals_total: integer
+    user_decisions:
+      approved: integer
+      modified: integer
+      rejected: integer
+      deferred: integer
+    actions_applied:
+      relocated: "list_of_{from, to}"
+      renamed: "list_of_{from, to}"
+      relocated_and_renamed: "list_of_{from, to}"
+      removed: "list_of_{file, removal_destination}"
+      merged: "list_of_{source, target, strategy}"
+      kept: list_of_files
+    failed_actions: "list_of_{file, attempted_action, error}"
+    decision_records: "list_of_{id, domain, outcome, rationale}"
+    audit_updates: "list_of_{filename, status, note}"
+    bootstrap_integration:
+      decisions_appended_via_checkpoint: integer_or_null
+      audit_entries_mutated: integer_or_null
+      note_if_standalone: "decisions emitted for manual capture; no bootstrap available"
+    git_suggestions: list_of_strings_or_null
+    decision_trace:
+      mode_detection_basis: string
+      cross_session_sweep_enabled: boolean
+      approval_mode: enum
+      removal_destination: enum
+      candidate_files_count: integer
+      para_invocations: integer
+      reference_scans: integer
+      duplicates_detected: integer
+      stubs_detected: integer
+      naming_convention_present: boolean
+      git_repo_present: boolean
+    handoff:
+      if_integrated: ready_for_continued_work_or_bootstrap-finalize
+      if_standalone: housekeeping_complete
+
+validation_gates:
+  - id: no_action_without_approval
+    check: every entry in applied_actions has matching user_decision == approved
+    on_fail: HARD_FAILURE rollback_unapproved
+  - id: no_unjustified_proposals
+    check: every proposal has non-empty justification with specific facts
+    on_fail: reject and rewrite
+  - id: para_classification_present_for_kept
+    check: every KEEP_AS_IS or RELOCATE proposal has para_class assigned
+    on_fail: re-invoke para-ontology
+  - id: reference_integrity_checked
+    check: every REMOVE, RELOCATE, RENAME has incoming_references field populated (may be empty list)
+    on_fail: reject and run reference scan
+  - id: reference_breakage_acknowledged
+    check: every REMOVE with non-empty incoming_references has explicit user acknowledgment
+    on_fail: re-prompt user
+  - id: removal_destination_is_recycle_bin
+    check: every REMOVE action uses desktop_recycle_bin
+    on_fail: HARD_FAILURE block_removal
+  - id: in_depth_review_before_removal
+    check: every REMOVE action has completed in_depth_review
+    on_fail: reject and run in_depth_review
+  - id: second_approval_when_needed
+    check: every REMOVE with reconsideration_info has second explicit operator approval
+    on_fail: hold_file_untouched
+  - id: decision_zero_context_test
+    check: every decision_record.rationale passes zero_context_test
+    on_fail: rewrite
+  - id: integrated_mode_writes_back
+    check: if mode == integrated, decision_records were appended via bootstrap-checkpoint AND audit_updates mutated in_memory_bootstrap
+    on_fail: HARD_FAILURE
+  - id: id_collision_check
+    check: new D-NNN ids do not collide with existing decisions
+    on_fail: reassign next available
+
+error_policy:
+  PARA_SKILL_UNAVAILABLE:
+    detect: para-ontology skill cannot be invoked
+    actions:
+      - flag_to_user
+      - request: classify_manually OR skip_PARA_checks_with_acknowledgment
+    forbidden: guess_classification
+
+  AMBIGUOUS_DUPLICATE:
+    detect: overlap_score between thresholds (0.85 to 0.95)
+    actions:
+      - present_diff_to_user
+      - request_user_choice: [merge, keep_both, remove_one, defer]
+    forbidden: silent_resolution
+
+  REFERENCE_BREAKAGE_RISK:
+    detect: REMOVE proposal has non-empty incoming_references
+    actions:
+      - escalate_to_user
+      - present_reference_list_with_line_numbers
+      - require_explicit_acknowledgment
+    forbidden: silent_removal
+
+  NAMING_CONVENTION_UNDEFINED:
+    detect: project has no documented naming convention
+    actions:
+      - skip_naming_check
+      - note_in_decision_trace: naming_convention_not_defined
+      - recommend_to_user: define convention for future sessions
+
+  SESSION_FILES_UNDETECTABLE:
+    detect: cannot determine which files are session-created
+    actions:
+      - request_user_provided_explicit_file_list
+      - or_offer_full_workspace_review_with_consent
+    forbidden: guess_session_scope
+
+  GIT_NOT_PRESENT:
+    detect: git_integration == true but no .git directory found
+    actions:
+      - skip_git_hints
+      - note_in_output: git_integration_skipped_no_repo
+
+  USER_REJECTS_ALL:
+    detect: every proposal rejected by user
+    actions:
+      - apply_no_actions
+      - emit_summary_with_zero_changes
+      - note_in_decision_trace: user_rejected_all
+
+  RECYCLE_BIN_UNAVAILABLE:
+    detect: recycle-bin technique fails or is unavailable
+    actions:
+      - HALT
+      - report_filesystem_error_to_user
+      - leave_candidate_untouched
+    forbidden: fallback_to_permanent_delete
+
+  CHECKPOINT_INTEGRATION_FAILED:
+    detect: mode == integrated but bootstrap-checkpoint invocation failed
+    actions:
+      - HARD_FAILURE
+      - report_to_user
+      - dump_decision_records_to_chat_as_fallback
+    forbidden: silent_loss_of_decisions
+
+anti_drift:
+  - never_modify_or_delete_without_explicit_approval
+  - never_remove_after_only_cursory_review
+  - never_skip_in_depth_review_before_removal
+  - never_skip_second_operator_approval_when_new_information_surfaces
+  - never_invent_para_classifications
+  - never_silently_resolve_duplicates
+  - never_remove_files_with_incoming_references_without_acknowledgment
+  - never_proceed_after_para_unavailable_without_user_consent
+  - never_skip_reference_integrity_check
+  - never_permanently_delete
+  - never_use_Remove-Item
+  - recycle_bin_is_only_removal_destination
+  - never_lose_decision_records_on_integration_failure
+  - decisions_must_pass_zero_context_test
+  - integrated_mode_must_write_back_or_halt

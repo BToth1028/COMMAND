@@ -1,0 +1,589 @@
+prompt_metadata:
+  id: n8n-research-playbook-v1
+  version: "1.0.0"
+  kind: reusable_research_procedure
+  intended_use: >-
+    Paste into an AI assistant (or follow manually) when you need structured
+    research on the n8n workflow automation platform — official docs,
+    self-hosting, nodes, AI/LangChain features, community templates, creator
+    content, security, licensing, or "deterministic" production patterns.
+    Replace variables first.
+  created_for: c:/code
+  modeled_on: ../../ai/playbook/ai_research_playbook.yaml
+  yaml_indent: spaces_required_for_parsers
+  note: This file uses 2-space indentation; YAML 1.2 parsers reject tab-indented files.
+
+variables:
+  TOPIC: ""
+  PRIMARY_SURFACE: ""
+  SUBTOPIC: ""
+  YEAR_HINT: "2026"
+  PRIMARY_SURFACE_enum:
+    - n8n_core               # the runtime, editor, executions
+    - n8n_nodes              # built-in nodes, integrations, triggers
+    - n8n_ai                 # AI Agent, LangChain cluster nodes, RAG, vector stores, MCP
+    - n8n_hosting            # self-hosted, docker, kubernetes, helm, queue mode
+    - n8n_cloud              # n8n Cloud, pricing, status, support scope
+    - n8n_api                # public REST API, webhooks, n8n CLI, node-cli
+    - n8n_community_nodes    # npm n8n-community-node-package ecosystem
+    - n8n_templates          # workflows marketplace, awesome-n8n-templates
+    - n8n_security           # hardening, SOC2, secrets, SSRF, audit log
+    - n8n_governance         # licensing (Sustainable Use), enterprise, embed
+    - n8n_zeitgeist          # creators, courses, paid communities, comparisons
+    - mixed
+    - unknown
+
+identity:
+  role: research_synthesizer
+  authority_model: >-
+    Official n8n properties (docs.n8n.io, n8n.io, community.n8n.io, github.com/n8n-io,
+    blog.n8n.io, support.n8n.io, status.n8n.cloud) outrank YouTube creators,
+    Reddit, Skool communities, and SEO blogs. Community sources are for
+    triangulation, real-world failure modes, and template discovery only.
+  non_goals:
+    - invent_sources
+    - present_creator_opinion_as_spec
+    - treat_paywalled_skool_content_as_canonical
+    - conflate_n8n_cloud_behavior_with_self_hosted_behavior_when_they_diverge
+
+mission:
+  objective: >-
+    Produce a prioritized, verifiable source list and executable search plan
+    for TOPIC, scoped by PRIMARY_SURFACE and SUBTOPIC, with explicit limits
+    on what counts as "production-grade" vs. "tutorial-only" guidance for n8n.
+  success_criteria:
+    - every_link_is_http_s_or_qualified_as_manual_search
+    - each_source_has_tier_and_use_case
+    - search_strings_are_copy_paste_ready_with_placeholders_filled
+    - community_sources_are_labeled_zeitgeist_not_canon
+    - cloud_vs_self_hosted_distinction_preserved_when_relevant
+    - version_pinning_called_out_when_behavior_changed_recently
+  failure_criteria:
+    - missing_tier1_n8n_docs_when_applicable
+    - no_distinction_between_node_documentation_and_creator_tutorial
+    - silent_carry_over_of_cloud_only_features_to_self_hosted_advice
+
+url_redirect_notes: >-
+  - n8n.io marketing pages occasionally redirect through n8n.io/integrations/<service>
+    landing pages; the docs.n8n.io counterpart is canonical for behavior.
+  - docs.n8n.io/reference/release-notes.html and docs.n8n.io/reference/changelog.html
+    serve the same content; the latter is the legacy alias.
+  - The community llms.txt is hosted at cdn.n8n.community/llms.txt (community CDN),
+    not at docs.n8n.io directly.
+  - status.n8n.cloud is the live status page; the github.com/n8n-io/n8n-cloud-status
+    repo (Upptime) is the historical/archived source.
+  - support.n8n.io is the Help Center (Intercom-backed) — use it for support scope,
+    plan-tier coverage, and known issues; functional behavior still belongs to docs.
+
+source_registry:
+
+  tier_1_official:
+
+    n8n_core_marketing:
+      - name: n8n homepage (product positioning, AI orchestration narrative)
+        url: https://n8n.io
+      - name: n8n pricing (Cloud plans, Enterprise, execution-based)
+        url: https://n8n.io/pricing
+      - name: n8n security overview (SOC 2 Type 2, encryption, controls)
+        url: https://n8n.io/security
+      - name: n8n careers (org culture, hiring philosophy)
+        url: https://n8n.io/careers
+      - name: n8n legal / privacy / DPA index
+        url: https://n8n.io/legal/
+      - name: n8n cloud status (live)
+        url: https://status.n8n.cloud/
+      - name: n8n cloud status (Upptime archive repo)
+        url: https://github.com/n8n-io/n8n-cloud-status
+
+    n8n_docs_root:
+      - name: docs.n8n.io (root — quickstarts, hosting, integrations, AI, API, CLI)
+        url: https://docs.n8n.io/
+      - name: Learning path (recommended sequence for new users)
+        url: https://docs.n8n.io/learning-path
+      - name: Text courses (Level 1 beginner, Level 2 intermediate; badges)
+        url: https://docs.n8n.io/courses
+      - name: Video courses (official beginner + advanced course pages)
+        url: https://docs.n8n.io/video-courses
+      - name: Release notes (current alias)
+        url: https://docs.n8n.io/reference/release-notes.html
+      - name: Release notes / changelog (legacy alias — same content)
+        url: https://docs.n8n.io/reference/changelog.html
+      - name: Sustainable Use License (fair-code) — full text
+        url: https://docs.n8n.io/faircode-license/
+      - name: Where to get help (community vs email vs enterprise SLA)
+        url: https://docs.n8n.io/help-community/help/
+
+    n8n_docs_hosting_and_ops:
+      - name: Hosting overview (self-host, queue mode, scaling)
+        url: https://docs.n8n.io/hosting/
+      - name: Securing n8n (overview — auth, SSO, SAML, 2FA, SSRF)
+        url: https://docs.n8n.io/hosting/securing/overview/
+      - name: Server CLI commands (db migrations, import/export, audit)
+        url: https://docs.n8n.io/hosting/cli-commands/
+      - name: Configuration / environment variables reference
+        url: https://docs.n8n.io/hosting/configuration/environment-variables/
+      - name: Scaling — queue mode and workers
+        url: https://docs.n8n.io/hosting/scaling/queue-mode/
+      - name: Logging and metrics
+        url: https://docs.n8n.io/hosting/logging-monitoring/
+      - name: Privacy and security — incident response policy
+        url: https://docs.n8n.io/privacy-security/incident-response
+
+    n8n_docs_api_and_cli:
+      - name: Public REST API overview
+        url: https://docs.n8n.io/api/
+      - name: REST API reference
+        url: https://docs.n8n.io/api/api-reference
+      - name: API authentication
+        url: https://docs.n8n.io/api/authentication/
+      - name: n8n CLI (remote management via API key — @n8n/cli)
+        url: https://docs.n8n.io/api/n8n-cli/
+      - name: Webhooks (production vs test webhooks, signing)
+        url: https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/
+
+    n8n_docs_nodes_and_integrations:
+      - name: Integrations browser (built-in + community)
+        url: https://docs.n8n.io/integrations/
+      - name: Built-in nodes index (app, core, trigger, cluster)
+        url: https://docs.n8n.io/integrations/builtin/node-types/
+      - name: Code node (JavaScript and Python execution rules)
+        url: https://docs.n8n.io/code/builtin/code-node/
+      - name: Expressions reference
+        url: https://docs.n8n.io/code/expressions/
+      - name: Credentials reference (per-integration)
+        url: https://docs.n8n.io/integrations/builtin/credentials/
+
+    n8n_docs_community_nodes:
+      - name: Install and manage community nodes
+        url: https://docs.n8n.io/integrations/community-nodes/installation/
+      - name: Building community nodes (package layout, naming convention)
+        url: https://docs.n8n.io/integrations/community-nodes/build-community-nodes
+      - name: Submitting community nodes for verification
+        url: https://docs.n8n.io/integrations/creating-nodes/deploy/submit-community-nodes
+      - name: Using the n8n-node CLI (@n8n/node-cli) — scaffold, dev, lint, release
+        url: https://docs.n8n.io/integrations/creating-nodes/build/n8n-node/
+
+    n8n_docs_ai:
+      - name: Advanced AI overview (LangChain in n8n)
+        url: https://docs.n8n.io/advanced-ai/
+      - name: LangChain concepts in n8n
+        url: https://docs.n8n.io/advanced-ai/langchain/langchain-n8n
+      - name: AI Agent node (Tools, Conversational, Plan-and-Execute)
+        url: https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/
+      - name: Tools AI Agent variant
+        url: https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent
+      - name: Plan and Execute AI Agent variant
+        url: https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/plan-execute-agent/
+      - name: RAG in n8n (vector stores, embeddings, retrievers)
+        url: https://docs.n8n.io/advanced-ai/rag-in-n8n
+      - name: LangSmith integration (self-hosted only)
+        url: https://docs.n8n.io/advanced-ai/langchain/langsmith/
+      - name: AI tools / MCP integration patterns (root nodes + sub-nodes)
+        url: https://docs.n8n.io/integrations/builtin/cluster-nodes/
+
+    n8n_official_repos:
+      - name: n8n monorepo (core runtime, editor, nodes-base, langchain nodes)
+        url: https://github.com/n8n-io/n8n
+      - name: n8n GitHub releases (canonical version history)
+        url: https://github.com/n8n-io/n8n/releases
+      - name: n8n issue tracker (bugs only — feature requests go to community forum)
+        url: https://github.com/n8n-io/n8n/issues
+      - name: n8n-docs (source for docs.n8n.io — MkDocs Material)
+        url: https://github.com/n8n-io/n8n-docs
+      - name: n8n-hosting (Docker Compose, Kubernetes, Helm, reverse-proxy recipes)
+        url: https://github.com/n8n-io/n8n-hosting
+      - name: n8n-nodes-starter (official template for new community nodes)
+        url: https://github.com/n8n-io/n8n-nodes-starter
+      - name: self-hosted-ai-starter-kit (n8n + Ollama + Qdrant + Postgres compose)
+        url: https://github.com/n8n-io/self-hosted-ai-starter-kit
+      - name: n8n-desktop-app
+        url: https://github.com/n8n-io/n8n-desktop-app
+      - name: n8n org page (40+ public repositories — discover sub-projects)
+        url: https://github.com/orgs/n8n-io/repositories
+
+    n8n_distribution:
+      - name: npm package (n8n)
+        url: https://www.npmjs.com/package/n8n
+      - name: npm package (@n8n/cli — remote management)
+        url: https://www.npmjs.com/package/@n8n/cli
+      - name: npm package (@n8n/node-cli — community-node scaffolding)
+        url: https://www.npmjs.com/package/@n8n/node-cli
+      - name: Docker Hub (n8nio/n8n image)
+        url: https://hub.docker.com/r/n8nio/n8n
+      - name: GitHub Container Registry — Helm chart (oci://ghcr.io/n8n-io/n8n-helm-chart/n8n)
+        url: https://github.com/n8n-io/n8n-helm-chart
+
+    n8n_community_property:
+      - name: community.n8n.io (148K+ members; canonical for feature requests)
+        url: https://community.n8n.io/
+      - name: Community categories (Questions, Built with n8n, Tutorials, Feature Requests, Announcements, Feedback, Highlights)
+        url: https://community.n8n.io/categories
+      - name: Community tag — node (deepest pool of integration questions)
+        url: https://community.n8n.io/tag/node
+      - name: Community tag — workflow-building
+        url: https://community.n8n.io/tag/workflow-building
+      - name: Community tag — deployment
+        url: https://community.n8n.io/tag/deployment
+      - name: Community tag — ai (AI Agent / LangChain / MCP threads)
+        url: https://community.n8n.io/tag/ai
+      - name: Community llms.txt (LLM-friendly docs index for Code node + expressions)
+        url: https://cdn.n8n.community/llms.txt
+      - name: Community CDN — expression rules
+        url: https://cdn.n8n.community/expression.md
+      - name: Community CDN — Code node rules
+        url: https://cdn.n8n.community/code.md
+      - name: Official Discord (community.n8n.io-linked invite)
+        url: https://discord.gg/n8n
+      - name: Help Center (support.n8n.io — Intercom KB)
+        url: https://support.n8n.io/
+      - name: Help Center — Scope of Support (what is/is not covered per plan)
+        url: https://support.n8n.io/article/scope-of-support
+      - name: Help Center — VPS / self-hosted support scope
+        url: https://support.n8n.io/article/support-scope-for-vps-deployments
+
+    n8n_templates_and_integrations_directory:
+      - name: Workflow templates marketplace (n8n.io/workflows — 9000+ templates)
+        url: https://n8n.io/workflows
+      - name: Integrations directory (n8n.io/integrations — service landing pages)
+        url: https://n8n.io/integrations
+      - name: Creators directory (verified template authors)
+        url: https://n8n.io/creators/
+      - name: Creator portal (login + submit)
+        url: https://creators.n8n.io/
+
+    n8n_blog_and_PR:
+      - name: n8n Blog (product, ecosystem, AI, fair-code essays)
+        url: https://blog.n8n.io
+      - name: Blog — Sustainable Use License announcement
+        url: https://blog.n8n.io/announcing-new-sustainable-use-license
+      - name: Blog — Fair-code essay (license rationale)
+        url: https://blog.n8n.io/fair-code-for-sustainable-open-source-alternatives/
+      - name: n8n Medium publication (newsletter mirror)
+        url: https://medium.com/n8n-io
+
+    n8n_video_official:
+      - name: Official YouTube channel (@n8n-io)
+        url: https://www.youtube.com/@n8n-io
+      - name: Official playlist — n8n Tutorials
+        url: https://www.youtube.com/playlist?list=PLkavAgJpTDw4MeMiR6e_b0-gtqrgtS30r
+      - name: Official playlist — Getting Started with n8n
+        url: https://www.youtube.com/playlist?list=PL8QOepGJ9A3lv734lVtYb5J-Be7XKip7T
+
+  tier_2_curated_repos:
+    - name: n8n-community/awesome-n8n
+      url: https://github.com/n8n-community/awesome-n8n
+      use_case: 2500+ community nodes catalogued by category and monthly downloads — verify against npm before recommending
+    - name: enescingoz/awesome-n8n-templates
+      url: https://github.com/enescingoz/awesome-n8n-templates
+      use_case: 280+ ready-to-import workflow templates across 18 categories (AI agents, RAG, email, social, DevOps)
+    - name: skyiron/awesome-n8n-top100-list
+      url: https://github.com/skyiron/awesome-n8n-top100-list
+      use_case: top-100 community nodes by popularity — quick triage of what is mainstream
+    - name: czlonkowski/n8n-mcp
+      url: https://github.com/czlonkowski/n8n-mcp
+      use_case: MCP server exposing 1500+ nodes, 99% property coverage, and 2700+ workflow templates to AI assistants (Cursor / Claude / Windsurf); de-facto standard for "AI agent that builds n8n workflows"
+    - name: n8n-mcp dashboard (hosted free tier)
+      url: https://dashboard.n8n-mcp.com
+      use_case: hosted n8n-mcp endpoint (100 tool calls/day free) — fastest way to wire an AI assistant to n8n knowledge
+    - name: n8n-io/n8n-helm-chart
+      url: https://github.com/n8n-io/n8n-helm-chart
+      use_case: official Helm chart (OCI-distributed) for production Kubernetes
+    - name: Weaviate — n8n integration guide
+      url: https://docs.weaviate.io/integrations/llm-agent-frameworks/n8n
+      use_case: third-party-but-authoritative wiring for vector store; mirror equivalents exist for Pinecone / Qdrant / Supabase / PGVector
+
+  tier_3_community_zeitgeist:
+    forums_and_aggregators:
+      - name: Reddit — r/n8n
+        url: https://www.reddit.com/r/n8n/
+        note: primary subreddit; mix of beginner help, creator promotion, and "n8n agency" business chatter
+      - name: Reddit — r/selfhosted (n8n threads)
+        url: https://www.reddit.com/r/selfhosted/search/?q=n8n
+        note: hosting and ops zeitgeist (Docker, Traefik, Caddy, backup)
+      - name: Reddit — r/automation (n8n threads)
+        url: https://www.reddit.com/r/automation/search/?q=n8n
+      - name: Reddit — r/LocalLLaMA (n8n + local LLM threads)
+        url: https://www.reddit.com/r/LocalLLaMA/search/?q=n8n
+      - name: Stack Overflow tag — n8n
+        url: https://stackoverflow.com/questions/tagged/n8n
+        note: low volume (~35 questions); community forum is where actual support happens
+      - name: Hacker News search — n8n
+        url: https://hn.algolia.com/?q=n8n
+        note: Show HN posts surface AI assistants, observability tools (n8n-trace), and Copilot alternatives
+      - name: Dev.to tag — n8n
+        url: https://dev.to/t/n8n
+      - name: Medium tag — n8n
+        url: https://medium.com/tag/n8n
+      - name: Product Hunt — n8n
+        url: https://www.producthunt.com/products/n8n
+      - name: builtin.com — n8n company profile (jobs, culture)
+        url: https://builtin.com/company/n8n
+
+    creator_youtube_channels:
+      - name: Nick Saraev (@nicksaraev) — 400K+ subs, "build & sell AI automations"
+        url: https://www.youtube.com/@nicksaraev
+        signature_artifact: "N8N FULL COURSE 6 HOURS (Build & Sell AI Automations + Agents)"
+      - name: Nate Herk (@nateherk) — 650K+ subs, n8n Expert Partner & 2x Community Award winner
+        url: https://www.youtube.com/@nateherk
+        signature_artifact: "8+ hour n8n AI agent course; runs AI Automation Society on Skool"
+      - name: Productive Dude (@productivedude) — 143K subs, Claude + n8n productivity
+        url: https://www.youtube.com/@productivedude
+      - name: Leon van Zyl (@leonvanzyl) — 95K subs, project-based real-world tutorials
+        url: https://www.youtube.com/@leonvanzyl
+      - name: AI Learners by Abhijeet (@ailearnersbyabhijeet) — 141K subs, Hindi AI agent tutorials
+        url: https://www.youtube.com/@ailearnersbyabhijeet
+      - name: Kunaal Naik (@kunaalnaik) — n8n for SMB
+        url: https://www.youtube.com/@kunaalnaik
+      - name: Simon Scrapes (simonscrapes) — verified n8n creator profile
+        url: https://n8n.io/creators/simonscrapes
+      - name: developereducators.com — curated "27 best n8n YouTube channels" leaderboard
+        url: https://developereducators.com/tutorials/n8n/
+        note: useful index for discovering rising creators
+
+    paid_communities_and_courses:
+      - name: AI Automation Society (Nate Herk — Skool)
+        url: https://www.skool.com/ai-automation-society
+        tier: free + Society Plus (paid)
+      - name: Maker School (Nick Saraev — Skool)
+        url: https://www.skool.com/maker-school
+        tier: paid; "automation customer leads + templates"
+      - name: n8n Nodes Automation Lab (community Skool)
+        url: https://www.skool.com/n8n-nodes-automation-lab-1570
+      - name: Complete AI Training — n8n certification (third-party)
+        url: https://completeaitraining.com/certification/certification-n8n-automation-agent-developer-beginner-to-pro
+      - name: n8n.associates — third-party "n8n Core Certification" cram
+        url: https://n8n.associates/
+
+    podcasts_and_long_form_interviews:
+      - name: Training Data (Sequoia) — Jan Oberhauser (Aug 2025)
+        url: https://www.sequoiacap.com/podcast/training-data-jan-oberhauser/
+        signature_quote: "4x revenue growth in 8 months vs prior 6 years; n8n as universal AI automation layer"
+      - name: Spotlight On (Accel) — Jan Oberhauser (Oct 2025)
+        url: https://www.accel.com/podcast-episodes/bonus-n8ns-jan-oberhauser-on-building-the-excel-of-ai
+        signature_quote: "n8n as the Excel of AI"
+      - name: Contributor podcast — Jan Oberhauser on fair-code
+        url: https://podcast.fireside.fm/contributor
+
+    creator_blogs_and_third_party_guides:
+      - name: nateherk.com (Nate Herk's hub)
+        url: https://nateherk.com/
+      - name: n8nautomation.cloud blog (RAG, vector stores, real workflows)
+        url: https://n8nautomation.cloud/blog
+      - name: n8nlab.io blog (B2B / LinkedIn / sales automation deep dives)
+        url: https://n8nlab.io/blog
+      - name: renezander.com — production self-hosting guide (Docker / K8s / bare metal)
+        url: https://renezander.com/blog/n8n-self-hosting-guide/
+      - name: Boxplot — n8n security walkthrough
+        url: https://boxplot.com/n8n-security/
+      - name: Chris Carr — LangSmith + Dockerised n8n
+        url: https://chrisdavidcarr.github.io/blog/posts/langsmith-with-n8n-docker/
+      - name: vasilkoff.com — n8n vs Activepieces vs Make
+        url: https://vasilkoff.com/blog/n8n-vs-activepieces-automation-comparison
+      - name: Activepieces blog — n8n vs Make.com / n8n vs Zapier (competitor PoV; useful for delta features)
+        url: https://www.activepieces.com/blog/n8n-vs-make-com
+      - name: AutomateNexus — n8n vs Make vs Zapier (2026 comparison)
+        url: https://automatenexus.com/resources/n8n-vs-make-vs-zapier
+      - name: aiworkflows.tools — n8n vs Zapier vs Make for AI automation (2026)
+        url: https://www.aiworkflows.tools/blog/n8n-vs-zapier-vs-make-ai-automation-2026
+
+    third_party_template_libraries:
+      - name: n8n-workflows.net (190+ templates by category)
+        url: https://n8n-workflows.net/
+      - name: n8nworkflow.app (community-contributed templates)
+        url: https://www.n8nworkflow.app/workflows
+
+    notable_show_hn_projects:
+      - name: n8n AI Assistant (Show HN — Chrome extension natural-language workflow builder)
+        url: https://news.ycombinator.com/item?id=44546616
+      - name: n8n Copilot (Show HN — chat-to-workflow)
+        url: https://news.ycombinator.com/item?id=44411506
+      - name: n8n-trace (Show HN — Grafana-style observability for n8n)
+        url: https://news.ycombinator.com/item?id=47290253
+      - name: VS Code AI Assistant for n8n (Show HN — open-source alternative to Cloud AI Assistant)
+        url: https://news.ycombinator.com/item?id=46732120
+
+    limit: opinions_and_anecdotes_require_cross_check_against_tier_1_or_tier_2
+
+determinism_note: >-
+  For n8n, treat "production-grade" as: pinned image tag (e.g. n8nio/n8n:1.x.y,
+  not :latest), workflows exported as JSON and committed to git (use the
+  source-control feature on Enterprise, or @n8n/cli + `workflow get` in CI),
+  Postgres backing store with backups (never SQLite in prod), queue mode with
+  a separate worker fleet for >50K executions/day, environment-variable-driven
+  config (no UI-only secrets), task runners enabled (default since n8n 2.0),
+  and explicit Publish (not autosave) gating production deployments. Pin the
+  major version when reading docs — release-notes show ~weekly minor releases
+  and node behavior has changed across 1.x → 2.x.
+
+search_templates:
+  web:
+    - "site:docs.n8n.io {TOPIC} ({PRIMARY_SURFACE} OR node OR credential OR expression)"
+    - "site:community.n8n.io {TOPIC} (questions OR \"built with n8n\" OR tutorials)"
+    - "site:blog.n8n.io {TOPIC}"
+    - "site:n8n.io/workflows {TOPIC}"
+    - "site:support.n8n.io {TOPIC}"
+    - "site:github.com/n8n-io {TOPIC} (issue OR release OR helm OR hosting)"
+    - "site:github.com/czlonkowski/n8n-mcp {TOPIC}"
+    - "site:news.ycombinator.com {TOPIC} n8n"
+    - "site:stackoverflow.com {TOPIC} [n8n]"
+    - "site:reddit.com/r/n8n {TOPIC}"
+    - "site:reddit.com/r/selfhosted {TOPIC} n8n"
+    - "site:dev.to {TOPIC} n8n"
+    - "site:medium.com {TOPIC} n8n"
+  github_code:
+    - "filename:docker-compose.yml n8nio/n8n {TOPIC}"
+    - "filename:values.yaml n8n-helm {TOPIC}"
+    - "path:packages/nodes-base {TOPIC} language:typescript"
+    - "path:packages/@n8n/nodes-langchain {TOPIC} language:typescript"
+    - "extension:json \"nodes\":\\s*\\[ {TOPIC}"     # workflow exports
+    - "filename:.env.example n8n {TOPIC}"
+  npm:
+    - "https://www.npmjs.com/search?q=keywords:n8n-community-node-package%20{TOPIC}"
+    - "https://www.npmjs.com/search?q=n8n-nodes-{TOPIC}"
+  youtube:
+    - "site:youtube.com {TOPIC} n8n (Nate Herk OR Nick Saraev OR Leon van Zyl OR Productive Dude)"
+    - "https://www.youtube.com/@n8n-io/search?query={TOPIC}"
+  reddit:
+    - "site:reddit.com {TOPIC} n8n (workflow OR webhook OR self-hosted OR queue OR \"AI Agent\")"
+  community_forum:
+    - "site:community.n8n.io/tag/{PRIMARY_SURFACE_tag} {TOPIC}"
+    - "https://community.n8n.io/search?q={TOPIC}%20order%3Alatest"
+  structured_user_prompt:
+    template: >-
+      Role: {role}. Context: n8n {version} on {cloud_or_self_host}, {db_backend},
+      {queue_or_main_only}. Task: {one_deliverable}. Format: {output_shape}.
+      Quality bar: {tests_via_n8n_cli_or_workflow_export} and pointer to the
+      canonical docs.n8n.io page.
+
+decision_procedure:
+  - step: 1
+    action: fill_variables
+    input: TOPIC, PRIMARY_SURFACE, SUBTOPIC, YEAR_HINT
+    output: scoped_question_one_paragraph
+  - step: 2
+    action: open_tier_1
+    input: source_registry.tier_1_official scoped to PRIMARY_SURFACE (or "mixed")
+    output: list_of_5_to_10_canonical_pages_to_read_first
+    must_include_when_relevant:
+      - the docs.n8n.io page that matches PRIMARY_SURFACE
+      - the corresponding github.com/n8n-io repo
+      - the relevant community.n8n.io tag
+      - release-notes.html if the question mentions "since" / "broken" / "regressed"
+      - faircode-license if the question is commercial / embed / resale
+  - step: 3
+    action: run_search_templates
+    input: search_templates.web + search_templates.github_code (always); add npm if
+           PRIMARY_SURFACE in [n8n_community_nodes, n8n_nodes]; add youtube if
+           SUBTOPIC implies tutorial; add community_forum always
+    output: ranked_hit_list_with_title_url_and_why
+  - step: 4
+    action: triangulate
+    input: at_most_two tier_3 sources (creator video OR Reddit thread OR HN post)
+           for failure_modes_or_workarounds
+    output: separate_section_labeled_zeitgeist
+  - step: 5
+    action: resolve_conflicts
+    rules:
+      - docs.n8n.io_wins_over_blog_n8n_io_when_they_disagree
+      - blog_n8n_io_wins_over_creator_youtube
+      - n8n_cloud_behavior_must_not_be_quoted_for_self_hosted_questions_without_a_caveat
+      - if_release_notes_show_a_change_after_creator_video_publish_date_then_video_is_stale
+    output: state_winner_and_why
+  - step: 6
+    action: emit_output_contract
+    validation: all links reachable_or_marked_unknown
+    on_failure: mark UNKNOWN and remove claim
+
+output_contract:
+  format: markdown
+  sections:
+    - title: Scoped question
+    - title: Tier 1 sources consulted
+      fields:
+        - name: url
+        - name: what_you_extracted
+        - name: cloud_vs_self_hosted_applicability
+    - title: Curated lists, repos, MCP, or templates (if any)
+    - title: Community zeitgeist (clearly labeled, optional)
+      must_include:
+        - source_type: [reddit_thread, youtube_video, hn_post, skool_post, blog_post]
+        - publication_date_or_marked_undated
+    - title: Copy-paste search strings used
+    - title: Version/hosting caveats
+      content: list of "applies to n8n {x.y}+" and "self-hosted only" / "cloud only" notes
+    - title: Gaps and UNKNOWNs
+  decision_trace_required: true
+  forbidden:
+    - unsourced_strong_claims
+    - single_youtube_video_as_definitive
+    - quoting_skool_paywalled_content_without_marking_it_paywalled
+    - presenting_npm_keyword_search_hit_as_endorsed_by_n8n
+
+validation_gates:
+  - gate: G1
+    check: at_least_one_docs_n8n_io_url_when_PRIMARY_SURFACE_is_known
+  - gate: G2
+    check: tier_3_content_is_labeled_zeitgeist_and_dated_or_marked_undated
+  - gate: G3
+    check: cloud_vs_self_hosted_distinction_explicit_for_hosting_security_or_pricing_topics
+  - gate: G4
+    check: community_node_recommendations_link_to_npm_AND_to_a_repo_or_author
+  - gate: G5
+    check: license_or_resale_advice_cites_docs.n8n.io/faircode-license_or_LICENSE.md
+
+acknowledgment_protocol:
+  if_topic_ambiguous: ask_one_clarifying_block_max_five_bullets
+  if_sources_conflict: report_conflict_and_cite_both_with_dates
+  if_only_creator_content_exists:
+    action: report_zeitgeist_only_and_recommend_filing_a_community_forum_thread
+    forbidden: presenting_creator_content_as_canon
+
+examples:
+
+  positive:
+    - variables:
+        TOPIC: "queue mode with separate workers and Redis on Kubernetes"
+        PRIMARY_SURFACE: n8n_hosting
+        SUBTOPIC: "production scaling for >50K executions/day"
+      expected_first_move: >-
+        Open docs.n8n.io/hosting/scaling/queue-mode/ and the official Helm chart
+        repo (github.com/n8n-io/n8n-helm-chart), then n8n-io/n8n-hosting for the
+        canonical kubernetes/ manifests, then community.n8n.io tag deployment
+        for real-world failure modes. renezander.com self-hosting guide is
+        permitted as a single tier-3 cross-check.
+
+    - variables:
+        TOPIC: "AI Agent node that uses MCP tools from a local server"
+        PRIMARY_SURFACE: n8n_ai
+        SUBTOPIC: "Cursor-driven workflow authoring"
+      expected_first_move: >-
+        Open docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/
+        + docs.n8n.io/advanced-ai/langchain/langchain-n8n, then czlonkowski/n8n-mcp
+        for the AI-assistant side, then community.n8n.io tag ai for known issues.
+
+    - variables:
+        TOPIC: "publishing a community node to npm"
+        PRIMARY_SURFACE: n8n_community_nodes
+        SUBTOPIC: "verification + Cloud eligibility"
+      expected_first_move: >-
+        Open docs.n8n.io/integrations/community-nodes/build-community-nodes,
+        docs.n8n.io/integrations/creating-nodes/deploy/submit-community-nodes,
+        docs.n8n.io/integrations/creating-nodes/build/n8n-node/, plus
+        github.com/n8n-io/n8n-nodes-starter; verify naming convention by
+        searching npm for keyword n8n-community-node-package.
+
+  negative:
+    - description: Citing a Nate Herk YouTube video as the spec for AI Agent max-iterations behavior
+      expected: reject_or_downrank_use_docs.n8n.io_AI_Agent_node_page
+    - description: Recommending `latest` Docker tag in a "production self-hosting" answer
+      expected: reject_violates_determinism_note_pin_a_concrete_minor_version
+    - description: Quoting an n8n Cloud-only feature (e.g. native AI Assistant) when the user said "self-hosted"
+      expected: reject_violates_G3_or_caveat_explicitly
+
+  edge:
+    - description: PRIMARY_SURFACE is unknown (user just said "I want to use n8n for X")
+      expected: start_from_mixed_tier_1_set (homepage + docs root + community + n8n.io/workflows) then narrow
+    - description: User asks whether they can resell a hosted n8n SaaS to their customers
+      expected: open docs.n8n.io/faircode-license + LICENSE.md + LICENSE_EE.md, then blog Sustainable Use License post; G5 enforced
+    - description: Question references a behavior that "broke last week"
+      expected: open release-notes.html and github.com/n8n-io/n8n/releases first; bisect by version

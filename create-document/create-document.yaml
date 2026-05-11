@@ -1,0 +1,82 @@
+command: create-document
+type: atomic
+phase: 1.0
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  Accept a frozen master-router handoff_envelope for request_type DOCUMENT,
+  resolve absolute target path and document subtype, materialise file contents
+  deterministically, never silently overwrite, emit structured stdout result.
+
+scope:
+  - Parse JSON handoff matching handoff_envelope_schema subset used by master-router
+  - Resolve UTF-8 document body from frozen fields or stdin
+  - Create parent directories if missing
+  - Emit single-line JSON success to stdout
+
+non_scope:
+  - Running master-router classification or tier negotiation
+  - CODE / RULE / SKILL / COMMAND artifact shapes
+  - Repairing malformed YAML beyond writing supplied body bytes
+
+authority:
+  canonical:
+    router_contract: "C:\Users\rtoth\.cursor\commands\\master-router\\COMMAND.md"
+    native_fs: workspace_filesystem
+  on_conflict: router_contract_wins
+
+inputs:
+  required_cli:
+    - --handoff-json absolute_path_to_json
+  optional_cli:
+    - --overwrite boolean default_false
+    - --stdin-body boolean default_false
+
+algorithm:
+  - id: AD1_load_handoff
+    op: json_parse_strict_utf8
+  - id: AD2_validate_request_type
+    op: assert_equals_DOCUMENT
+  - id: AD3_validate_subtype_present
+    op: assert_non_empty_string
+  - id: AD4_validate_target_absolute
+    op: assert_path_string_absolute_windows_or_posix
+  - id: AD5_overwrite_gate
+    op: halt_if_exists_without_overwrite_flag
+  - id: AD6_resolve_body
+    op: optional_inputs_body_brief_else_required_body_else_stdin
+  - id: AD7_write_file
+    op: mkdir_parents_mkfile_utf8
+  - id: AD8_emit_stdout
+    op: print_json_status_written
+
+output_contract:
+  success_stdout: single_json_object_with_status_path_subtype
+  failure_stderr: HALT_reason_lines
+  forbidden:
+    - silent_overwrite
+    - partial_writes_without_error
+
+validation_gates:
+  - VDOC01_request_type_DOCUMENT
+  - VDOC02_target_path_absolute_non_empty
+  - VDOC03_subtype_non_empty
+  - VDOC04_body_resolved_or_stdin
+
+error_policy:
+  MISSING_HANDOFF:
+    action: HALT_stderr
+  TARGET_EXISTS_NO_OVERWRITE:
+    action: HALT_stderr
+  BODY_UNRESOLVED:
+    action: HALT_stderr
+
+anti_drift:
+  - never_infer_subtype_or_path_from_handoff_extensions_only
+  - never_default_overwrite_true
+  - never_execute_when_request_type_not_DOCUMENT
+
+runner:
+  python_module: create-document_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-document"

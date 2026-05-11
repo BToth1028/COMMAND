@@ -1,0 +1,50 @@
+#Prompt (3/4)
+
+Read metric_story and schema_mode from the handshake JSON (default: metric_story true, schema_mode full). See 00_PROMPT_ORDER.md for meaning.
+
+---
+
+STEP 0 - Scope and budget (after full corpus read, before Block 1)
+
+When you have read every document in the corpus at least once in full, you must first emit a section titled ESTIMATED_SCOPE_AND_BUDGET and then STOP. Do not run Block 1 in the same turn until the operator has responded.
+
+ESTIMATED_SCOPE_AND_BUDGET must include:
+- Corpus inventory: list Di with brief type, approximate size, optional preliminary tier guess
+- Dominant risk: e.g. massive Tier 3 share, cross-doc conflicts, missing S0
+- Proposed work shape: e.g. full pipeline vs reduced mode recommendation
+- Effort/length budget (estimate, not a cap): expected relative size of Block 1, Block 2, Block 3+appendices, test count range; single-session vs multi-trunk
+- Explicit question to operator: one of APPROVE (proceed), DENY (stop), or ADJUST (operator replies with constraints)
+
+Hard rule: No Block 1 scoring or extraction in the same turn as Step 0. Wait for operator.
+
+If operator DENY, stop. If ADJUST, re-issue a revised budget or wait again. If APPROVE, use approved budget as governing constraint for depth and length. No fixed page cap; compare actual to estimate in a one-line BUDGET_ACTUALS at end of final block.
+
+---
+
+OPERATOR_ALERT - low-signal material (never automatic)
+
+Before you summarize, park, deprioritize, or batch-skip a large share of Tier 3 documents; split the run into trunks; or auto-collapse noise to appendices, emit OPERATOR_ALERT (alternatives and risks) and STOP for a human decision.
+
+Do not perform those actions in the same turn as the alert. Default after alert: wait. Proceed only if operator explicitly authorizes a named option.
+
+---
+
+BLOCK 1 - Per-document structural analysis (no cross-document merge)
+
+Run Block 1 only after Step 0 is APPROVED. Do not unify across documents.
+
+Step 3 - Document signal scoring
+
+For each Di, score 0-5 on: (1) Determinism (2) Collapse Value (3) Root Integrity (4) Kernel Relevance (5) Quantitative Control.
+
+If metric_story is false, dimension 5 is N/A (not scored).
+
+Totals: if metric_story true, total /25, tiers Tier1 >=18, Tier2 12-17, Tier3 <=11. If metric_story false, total /20, tiers Tier1 >=15, Tier2 10-14, Tier3 <=9.
+
+If handling many Tier-3 files would require summarizing or parking, emit OPERATOR_ALERT and stop; do not auto-execute.
+
+Step 4 - Per-document irreducible core extraction (same as prior prompt: S0, CWA, collapse, K0, recursive, quantitative only if applicable, U#, atomic [Di.C#], no cross-doc merge)
+
+Required output: A) Corpus index B) Claim tables C) Irreducible cores. Then stop.
+
+---

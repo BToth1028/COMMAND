@@ -1,0 +1,36 @@
+command: create-bootstrap
+type: atomic
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — Will execute BOOTSTRAP dispatch (bootstrap-start when project_root
+  exists but bootstrap subtree missing). Today: validate handoff only.
+
+scope:
+  - Parse handoff; require request_type BOOTSTRAP
+  - Verify required_inputs_frozen: project_name, project_root_absolute
+  - Emit DRAFT_ONLY (exit 2)
+
+non_scope:
+  - Full PROJECT chain
+  - Session lifecycle / bootstrap when directory already exists (router WRONG_TOOL)
+
+authority:
+  canonical:
+    router_contract: "C:\Users\rtoth\.cursor\commands\\master-router\\COMMAND.md"
+
+dispatch_reference:
+  master_router_section: dispatch_table.BOOTSTRAP
+  upstream: "C:\Users\rtoth\.cursor\commands\bootstrap\\bootstrap-start.yaml"
+
+required_handoff_keys:
+  - project_name
+  - project_root_absolute
+
+runner:
+  python_module: create-bootstrap_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-bootstrap"
+  draft_exit_code: 2

@@ -1,0 +1,23 @@
+command: create-subagent
+type: atomic
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — Subagent markdown under .cursor/agents. Validate SUBAGENT handoff only.
+
+dispatch_reference:
+  master_router_section: dispatch_table.SUBAGENT
+
+required_handoff_keys:
+  - subagent_name
+  - subagent_description
+  - system_prompt_body
+  - scope
+
+runner:
+  python_module: create-subagent_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-subagent"
+  draft_exit_code: 2

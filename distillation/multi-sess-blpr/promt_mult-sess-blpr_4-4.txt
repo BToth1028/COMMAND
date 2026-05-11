@@ -1,0 +1,49 @@
+#Prompt (4/4)
+
+BLOCK 2 - Cross-document canonicalization and equivalence collapse
+Input: full output from Block 1 only; metric_story and approved budget from Step 0.
+
+You may unify across documents. Do not introduce new constructs; every element traces to Block 1 anchors [D?.C?].
+
+Step 1 - Canonical candidate set (union)
+
+Build registry for: primitives/types, authority (S0, rules, validators, proof obligations), CWA, equivalence and collapse, quotient, K0, recursive constraints, and quantitative metrics (only if metric_story or corpus defined).
+
+Each entry: canonical name, one-line enforceable definition, source anchors. No narrative.
+
+Step 2 - Deduplication in three ordered sub-steps (not a single overlap percentage)
+
+(1) **Same obligation merge:** Merge two candidates if they express the same S0/validator/proof obligation under rewording (semantic identity of the enforceable obligation, not just keyword overlap). Prefer sharper rule; keep one canonical row; list aliases in the alias map.
+(2) **Shared-claim-id merge:** For remaining near-duplicates, list **explicit sets of shared atomic claim IDs** (intersection of [D?.C?] underlies). If the intersection non-empty and both candidates describe the same structural role, merge. If intersection empty or role differs, do not merge; escalate to (3) or U#.
+(3) **Operator merge:** For borderline cases (unclear same obligation, partial overlap, or conflict risk), do **not** auto-merge. Emit a short **MERGE_CANDIDATE** line with two candidates + anchor lists and a recommended action; if automation cannot request human input, register **U#** (merge blocked pending judgment).
+
+Never merge contradictions silently.
+
+Step 3 - Equivalence quotient structure
+
+EC1..ECn, representatives, members+anchors, partial-order sketch only if justified.
+
+Step 4 - Contradictions: U# entries (unchanged: conflict, candidates, status Active Uncertainty, resolution test). No silent merges. No fake synthesis.
+
+Step 5 - Hidden assumptions A# for S0, CWA, equivalence, K0 recursion, and H/W/CE/VC only when metric-relevant. Each lists dependent candidates.
+
+Block 2 output: A) Registry B) Alias map C) Equivalence classes + sketch D) U# E) A#
+
+Stop. No blueprint yet.
+
+---
+
+BLOCK 3 - Closed-ended ontology enforcement blueprint
+Input: Block 2 only; follow approved Step 0 budget (and metric_story / schema_mode).
+
+Self-contained operational spec, not expository essay. If schema_mode is reduced, compress sections 2-5 to corpus-grounded depth only; keep 1, G/U#, traceability, and tests honest.
+
+Required sections: (1) Scope + CWA (2) Authority topology (3) Collapse (4) K0 (5) Recursive safety (6) Quantitative: full definitions and monitoring if metric_story; if false, one line OOS (7) Failure modes (8) Acceptance tests: as many as needed to prove enforcement, within approved budget; if no budget line was given, default **at least 8** and **at most 20** minimal tests unless operator_adjust says otherwise. Each test references rules and EC#/candidates when useful.
+
+Appendices A U#, B A#, C traceability map.
+
+Density: no narrative filler, merge overlaps, exclude untestable rules. **No fixed page cap**; total size follows **approved** Step 0 budget. If actual exceeds estimate materially, add one-line BUDGET_ACTUALS: estimated vs actual (sections/tests/lines) with reason (e.g. conflict surface).
+
+End of specification.
+
+---

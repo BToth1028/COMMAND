@@ -1,0 +1,23 @@
+# 43.02-commands — substructure precedent (JDex governance stops at ID; patterns are operator-local).
+
+schema_version: 1
+
+id: "43.02"
+name: commands
+
+patterns:
+  - pattern_id: cursor-command-profile-junction
+    description: >
+      One directory per slash-command name MAY be implemented as a Windows directory junction from
+      43.02-commands\<name>\ to %USERPROFILE%\.cursor\commands\<name>\. Git-tracked COMMAND trees
+      (e.g. audit-engine) stay real folders; junctions are optional navigation aids for commands
+      authored primarily under the profile. List junction basenames in .gitignore so
+      core.symlinks=false cannot snapshot profile files through the link.
+    examples:
+      - master-router -> %USERPROFILE%\.cursor\commands\master-router
+      - create-facet -> %USERPROFILE%\.cursor\commands\create-facet
+
+novel_content_resolution_protocol:
+  steps:
+    - Run jd_propose for any new file under this ID.
+    - If adding a new command junction at the ID root, append the basename to .gitignore and record the pattern example here.

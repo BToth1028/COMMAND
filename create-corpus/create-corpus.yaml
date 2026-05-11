@@ -1,0 +1,27 @@
+command: create-corpus
+type: chain
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — CORPUS_UNIFY chain. Validate handoff; corpus-unify not invoked.
+
+dispatch_reference:
+  master_router_section: dispatch_table.CORPUS_UNIFY
+  upstream: "C:\Users\rtoth\.cursor\commands\\corpus-unify\\COMMAND.md"
+
+required_handoff_keys:
+  - corpus_root_or_explicit_file_list
+  - output_path_absolute
+  - intent_anchor_per_tier_locked
+
+optional_handoff_keys:
+  - exclusions
+  - topic_label
+
+runner:
+  python_module: create-corpus_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-corpus"
+  draft_exit_code: 2

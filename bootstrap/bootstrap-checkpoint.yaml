@@ -1,0 +1,303 @@
+instructions_md: |
+  # bootstrap-checkpoint (agent prose)
+
+  You keep the in-memory bootstrap aligned with current session reality.
+  You never write to disk (finalize does that) and never modify existing
+  in-session decisions (use supersedes within the current session for
+  reversals).
+
+  Decisions are session-scoped — only THIS session's decisions live in the
+  bootstrap. The checkpoint never reads prior-session decisions (init
+  already correctly skipped them) and never propagates current decisions
+  outside this session's bootstrap.
+
+  ## Trigger modes
+
+  - **event** — a specific event fired (`task-completed`, `decision-made`,
+    etc.). Apply the matching mutation.
+  - **manual** — user explicitly asked you to checkpoint. Run a full sweep.
+  - **periodic_self_check** — every ~3-5 substantive exchanges, ask
+    yourself: "if this session ended now, would the bootstrap reflect
+    reality?" If no, run a full sweep.
+
+  ## Event handling
+
+  - `task-completed` — set `task.status = DONE`, set `session_completed =
+    current_session_id`, append a completion note if non-obvious.
+  - `new-task-discovered` — append task with status `ACTIVE`,
+    `session_origin = current_session_id`, `id = next available T-NNN`.
+  - `task-blocked` — set status `BLOCKED`, populate `blockers` field with
+    diagnosis-grade detail.
+  - `task-deferred` — set status `DEFERRED`, populate `deferred_reason`
+    with reactivation conditions.
+  - `task-cancelled` — set status `CANCELLED`, populate `cancelled_reason`.
+  - `decision-made` — append decision with `id = next available D-NNN`,
+    `session_origin`, `domain`, `outcome`, `rationale` (must pass
+    zero-context test).
+  - `scope-change` — update `project.summary`, flag affected tasks, note
+    what changed and why.
+  - `error-or-conflict-encountered` — append issue with
+    `id = next available I-NNN`, `severity`, `summary`.
+
+  ## Full sweep
+
+  - Confirm each task's status matches reality
+  - Append any undocumented tasks discovered
+  - Append any undocumented decisions discovered
+  - Detect environment changes (tools, paths)
+  - Append any undocumented issues
+
+  ## Steps
+
+  1. Identify trigger type. Dispatch to event handler, manual full-sweep,
+     or periodic full-sweep.
+  2. Apply mutations.
+  3. Run validation gates. Reject and fix on failure.
+  4. Emit a structured diff per output contract.
+
+  ## Hard rules
+
+  - Never modify an existing decision. Reversal = append new decision with
+    `supersedes` pointing at old. Removing or editing old decisions is
+    HARD_FAILURE.
+  - Never change an existing task or decision id. ID mutation is
+    HARD_FAILURE.
+  - Never write to disk. Disk write is finalize-only.
+  - Never default ambiguous task status to DONE. Default to ACTIVE with
+    clarification note on the affected task's `notes` field and in
+    `decision_trace`.
+  - Never invent tasks the agent thinks "should" exist.
+  - Never emit self-check narration. Run the self-check silently.
+  - Never describe mutations in prose. Emit the structured diff only.
+  - The first visible token is the populated output contract.
+
+command: bootstrap-checkpoint
+phase: 2
+step: 4
+invokes_after: bootstrap-init
+invokes_before: bootstrap-finalize
+governed_by: COMMAND.md
+trigger_modes: [event_driven, manual, periodic_self_check]
+mission: keep in-memory bootstrap aligned with current session reality
+
+scope:
+  - update task statuses on event
+  - append newly discovered tasks
+  - append new decisions with rationale
+  - update environment if changed
+  - append new issues
+  - update project.summary on scope shift
+
+non_scope:
+  - writing to disk (only bootstrap-finalize writes)
+  - modifying existing in-session decisions (use supersedes within this session for reversals)
+  - renumbering task or decision ids
+  - removing in-session decisions
+  - reading or carrying forward prior-session decisions (decisions are session-scoped)
+  - re-applying carry-forward (already done by bootstrap-init)
+
+authority:
+  canonical: in_memory_bootstrap_plus_observed_session_activity
+  on_conflict: explicit_event_wins_over_inference
+
+inputs:
+  required:
+    in_memory_bootstrap: object
+    trigger: enum
+  optional:
+    trigger_payload: object  # for event triggers
+  ignored:
+    - trivial_operational_choices
+    - speculative_future_work
+
+triggers:
+  event:
+    task-completed:
+      mutations:
+        - set: task.status = DONE
+        - set: task.session_completed = current_session_id
+        - if_non_obvious: append_completion_note
+    new-task-discovered:
+      mutations:
+        - append_task:
+            status: ACTIVE
+            session_origin: current_session_id
+            id: next_available_T_NNN
+            origin_description: required
+    task-blocked:
+      mutations:
+        - set: task.status = BLOCKED
+        - require: blockers_field_with_diagnosis_grade_detail
+    task-deferred:
+      mutations:
+        - set: task.status = DEFERRED
+        - require: deferred_reason_with_reactivation_conditions
+    task-cancelled:
+      mutations:
+        - set: task.status = CANCELLED
+        - set: task.session_completed = current_session_id
+        - require: cancelled_reason_with_rationale
+    decision-made:
+      mutations:
+        - append_decision:
+            id: next_available_D_NNN
+            session_origin: current_session_id
+            domain: required
+            outcome: required
+            rationale: must_pass_zero_context_test
+    scope-change:
+      mutations:
+        - update: project.summary
+        - flag: affected_tasks
+        - note: what_changed_and_why
+    error-or-conflict-encountered:
+      mutations:
+        - append_issue:
+            id: next_available_I_NNN
+            severity: assessed
+            summary: required
+            session_origin: current_session_id
+  manual:
+    invocation: user_explicit_call
+    action: full_sweep
+  periodic_self_check:
+    interval: every_3_to_5_substantive_exchanges
+    self_check: "if session ended now, would the bootstrap reflect reality?"
+    on_self_check_no: full_sweep
+
+algorithm:
+  - id: 1_identify_trigger
+    op: dispatch
+    cases:
+      event: go_to_event_handler
+      manual: go_to_full_sweep
+      periodic_self_check: go_to_full_sweep
+
+  - id: 2a_event_handler
+    op: apply_event_mutation
+    input: trigger_payload
+    apply: triggers.event[trigger_payload.event_name].mutations
+    after: validate_then_emit
+
+  - id: 2b_full_sweep
+    op: iterate_all
+    steps:
+      - sweep_tasks: confirm_each_status_matches_reality
+      - sweep_for_undocumented_tasks: append_if_found
+      - sweep_for_undocumented_decisions: append_if_found
+      - sweep_environment: detect_tools_or_paths_changes
+      - sweep_for_undocumented_issues: append_if_found
+
+  - id: 3_apply_mutations
+    op: mutate_in_memory_bootstrap
+    invariant: respects_all_validation_gates
+
+  - id: 4_emit_diff
+    op: output
+    format: per_output_contract
+
+output_contract:
+  format: structured_diff
+  required_fields:
+    trigger: {enum: [event, manual, periodic_self_check]}
+    changes:
+      tasks_added: list_of_{id, title}
+      tasks_status_changed: list_of_{id, from_status, to_status}
+      decisions_added: list_of_{id, domain, outcome_summary}
+      issues_added: list_of_{id, severity, summary}
+      environment_changed: boolean
+      scope_changed: boolean
+    bootstrap_now_reflects_reality: boolean
+    decision_trace:
+      trigger_source: {enum: [event, manual, periodic]}
+      mutations_applied: integer
+      validation_gates_passed: "{integer}/{total}"
+      checkpoint_drift_detected: boolean
+      ambiguous_defaults:
+        type: list
+        fields_per_entry: [task_id, note_destination]
+    handoff: in_memory_updated_finalize_required_at_session_end
+
+validation_gates:
+  - id: no_decision_removal
+    check: count(decisions) >= prior_count_within_session
+    on_fail: HARD_FAILURE in_session_decisions_are_immutable
+    note: this gate applies only WITHIN the current session; decisions are not carried across sessions
+  - id: id_immutability
+    check: no existing task or decision id changed
+    on_fail: HARD_FAILURE ids_are_permanent
+  - id: status_enum_compliance
+    check: every task.status in [ACTIVE, DONE, BLOCKED, DEFERRED, CANCELLED]
+    on_fail: reject and fix
+  - id: blocked_has_blocker
+    check: every BLOCKED task has non-null blockers
+    on_fail: reject and populate
+  - id: deferred_has_reason
+    check: every DEFERRED task has non-null deferred_reason
+    on_fail: reject and populate
+  - id: cancelled_has_reason
+    check: every CANCELLED task has non-null cancelled_reason
+    on_fail: reject and populate
+  - id: decision_zero_context_test
+    check: every new decision rationale passes zero_context_test
+    on_fail: rewrite_rationale
+  - id: ambiguous_default_has_task_note
+    check: every ambiguous ACTIVE default has note on affected task and decision_trace entry
+    on_fail: reject and populate_note
+
+error_policy:
+  AMBIGUOUS_TASK_STATUS:
+    detect: cannot determine ACTIVE vs BLOCKED
+    default: ACTIVE
+    required_task_note: "status unclear at checkpoint - carried as ACTIVE pending clarification"
+    required_decision_trace_entry:
+      task_id: affected_task_id
+      note_destination: task.notes
+
+  DECISION_REVERSAL:
+    detect: new decision contradicts existing one
+    actions:
+      - append_new_decision
+      - set: new_decision.supersedes = old_decision.id
+    forbidden: [modify_old_decision, remove_old_decision]
+
+  CONFLICTING_INFORMATION:
+    detect: two events produce contradictory state
+    actions:
+      - append_issue:
+          severity: HIGH
+      - flag_in_output
+      - request_user_canonical_answer
+    forbidden: silent_resolution
+
+  CHECKPOINT_DRIFT:
+    detect: full sweep finds > 3 unlogged events
+    actions:
+      - apply_all_updates
+      - set_decision_trace.checkpoint_drift_detected: true
+      - note_in_decision_trace: "checkpoint drift detected - increase frequency"
+    forbidden: ask_before_applying_unless_conflict_requires_operator
+
+anti_drift:
+  - never_modify_existing_in_session_decisions
+  - never_carry_forward_decisions_from_prior_sessions
+  - never_silently_resolve_conflicts
+  - never_skip_zero_context_test
+  - never_default_to_DONE
+  - ambiguous_task_status_defaults_to_ACTIVE_with_task_note
+  - checkpoint_drift_applies_deterministic_updates_without_prompt_unless_conflict
+  - never_invent_tasks
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_meta_commentary_about_what_will_be_done
+  - never_emit_self_check_narration_run_self_check_silently
+  - never_describe_mutations_in_prose_emit_structured_diff_only
+  - never_ask_clarifying_questions_before_executing
+  - never_request_user_confirmation_to_begin
+  - first_visible_token_must_be_populated_structured_diff_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - never_write_to_disk_disk_write_is_finalize_only
+  - decision_removal_attempt_is_HARD_FAILURE_not_warning
+  - id_mutation_attempt_is_HARD_FAILURE_not_warning

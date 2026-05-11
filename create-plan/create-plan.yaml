@@ -1,0 +1,27 @@
+command: create-plan
+type: atomic
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — Hand off to project-plan-builder. Validate PLAN handoff only.
+
+dispatch_reference:
+  master_router_section: dispatch_table.PLAN
+  upstream: "C:\Users\rtoth\.cursor\commands\\planning\\project-plan-builder.yaml"
+
+operation_enum:
+  - create_milestone_plan
+  - create_execution_plan
+
+required_handoff_keys:
+  - project_id
+  - operation
+  - operation_payload
+
+runner:
+  python_module: create-plan_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-plan"
+  draft_exit_code: 2

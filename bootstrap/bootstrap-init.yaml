@@ -1,0 +1,371 @@
+instructions_md: |
+  # bootstrap-init (agent prose)
+
+  ## Authority citations
+  - Operational protocol: `C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md`
+  - Task carry-forward matrix vocabulary: `corpus/charter--1a017eabb2e8.yaml`
+    → `payload.session_continuity_vocabulary.task_carry_forward_matrix`
+    (TEMPORARY_TENANT — see that block's `todo` for extraction conditions).
+  - The prose in this file describes the APPLICATION of the matrix only.
+    Authoritative status enums and `carry_forward` booleans live in the
+    charter. If they ever disagree, the charter wins.
+
+  You construct a NEW in-memory bootstrap by applying the carry-forward
+  matrix to the parsed prior bootstrap. You do not read prior bootstrap
+  from disk (ingest did that) and you do not write the new bootstrap to
+  disk (finalize does that). You DO ensure the live bootstrap directory
+  exists on disk for project_root. Do not create `_ar/` while archive
+  housekeeping is deferred.
+
+  ## Steps
+
+  1. If `session_zero_flag` is true:
+     - Require `project_name` and `project_root` (absolute path per Q4).
+       If either is missing, HALT and request from operator.
+     - Construct a complete valid bootstrap object with `project`, `session`,
+       `tasks: []`, `decisions: []`, `environment`, `context_file_audit: []`,
+       and `issues: []`.
+     - Populate `project.name` from input, `project.summary` with
+       `"session-zero - no prior history"`, and unknown scope fields with
+       explicit `UNKNOWN - ...` values.
+     - Populate session block with new id, timezone, started, ended=null,
+       and `session_summary = ""`.
+     - Create `{project_root}/02_working/chat-sessions/bootstrap/` if missing.
+     - Skip carry-forward entirely.
+     - If invoked via Q6 no-valid-recovery-candidate fall-through from ingest
+       recovery, require already-known project_root, already-known project_name,
+       and explicit operator confirmation unless confirmation already occurred
+       in start/recovery.
+     - Continue at step 9.
+  2. Clone project identity (`name`, `summary`, `scope`, `non_scope`) from
+     prior. If user has signaled scope shift, update `summary` and flag
+     for finalize.
+  3. Initialize the new session block: `id` = `new_session_id`,
+     `started` = `current_timestamp`, `ended` = `null`,
+     `session_summary` = `""`.
+  4. Carry forward tasks: keep where status in `[ACTIVE, BLOCKED, DEFERRED]`.
+     Drop where status in `[DONE, CANCELLED]`. Preserve `id` and
+     `session_origin` verbatim. Apply deterministic ordering.
+  5. **Decisions are NOT carried forward** (per COMMAND.md decision_logging.permanence).
+     The new bootstrap starts with `decisions: []`. Decisions will be added
+     during the session as new choices are made (each tagged with
+     `session_origin = new_session_id`).
+  5b. **next_session_kickoff is NOT carried forward** — it exists only on
+     finalized on-disk YAML for the following session's Path 1 handoff.
+     Omit the key entirely from `new_bootstrap` (populate only at next
+     finalize).
+  6. Carry forward environment snapshot verbatim. It will be refreshed at
+     finalize.
+  7. Seed `context_file_audit` from the audit results passed in by
+     `bootstrap-audit`.
+  8. Carry forward open issues only: keep where `resolution == null`. Drop
+     resolved.
+  9. Verify live directory exists for project_root; create if missing.
+  10. Run all validation gates. Halt and report on any failure.
+  11. Emit per output contract. Hand off — project work may now begin.
+
+  ## Hard rules
+
+  - Never carry forward DONE or CANCELLED tasks.
+  - Never carry forward decisions. New bootstrap starts with empty decisions list.
+  - Never carry forward `next_session_kickoff` — omit from new in-memory bootstrap.
+  - Never renumber existing IDs. ID continuity violation is HALT.
+  - Never write the new bootstrap to disk. Disk persistence is finalize-only.
+    (Directory creation in step 9 is structural setup, not bootstrap write.)
+  - Never create `_ar/` while archive housekeeping is deferred.
+  - Never narrate or describe carry-forward in prose. Emit counts only via
+    output contract.
+  - Never ask clarifying questions before executing — unless session-zero
+    requires project_name or project_root.
+  - Session-zero with no `project_name` OR no `project_root` is a HALT —
+    request user input.
+
+command: bootstrap-init
+phase: 1
+step: 3
+invokes_after: bootstrap-audit
+invokes_before: null
+governed_by: COMMAND.md
+mission: construct new in-memory bootstrap by applying carry-forward matrix; ensure live dir exists
+
+scope:
+  - construct new bootstrap object in working memory
+  - carry forward project identity
+  - carry forward ACTIVE, BLOCKED, DEFERRED tasks
+  - carry forward environment snapshot
+  - carry forward open issues
+  - drop DONE, CANCELLED tasks
+  - drop resolved issues
+  - drop decisions entirely (session-scoped, not propagated)
+  - generate new session id and started timestamp
+  - create live dir if missing
+  - confirm initialization
+
+non_scope:
+  - reading prior bootstrap (done by bootstrap-ingest)
+  - auditing context files (done by bootstrap-audit)
+  - writing the new bootstrap to disk (done by bootstrap-finalize)
+  - modifying any prior bootstrap file
+  - propagating decisions across bootstraps
+  - beginning project work
+
+authority:
+  canonical: prior_bootstrap_plus_carry_forward_matrix
+  on_conflict: matrix_is_absolute
+  override_attempts: forbidden
+  carry_forward_matrix_definition_authority:
+    file: corpus/charter--1a017eabb2e8.yaml
+    block: payload.session_continuity_vocabulary.task_carry_forward_matrix
+    status: TEMPORARY_TENANT
+    note: prose_in_this_file_describes_application_logic_only_authoritative_values_live_in_charter
+
+inputs:
+  required:
+    current_timestamp: ISO_8601
+    project_root: absolute_path
+  required_unless_session_zero:
+    parsed_prior_bootstrap: object
+    audit_results: object
+  required_when_session_zero:
+    project_name: string
+  optional:
+    session_zero_flag: boolean (default false)
+    q6_fall_through: boolean (default false; signals from ingest no-valid-recovery-candidate fallback)
+    q6_operator_confirmed_session_zero: boolean (default false)
+  derived:
+    new_session_id: format_timestamp(current_timestamp, "YYMMDD-HHMM")
+    bootstrap_dir_live: "{project_root}/02_working/chat-sessions/bootstrap/"
+  ignored:
+    - prior_tasks_with_status_DONE
+    - prior_tasks_with_status_CANCELLED
+    - prior_issues_with_resolution_non_null
+    - prior_decisions  # session-scoped, never propagated
+
+algorithm:
+  - id: 1_branch_session_zero
+    op: conditional
+    if: session_zero_flag == true
+    then:
+      - require: [project_name, project_root]
+      - on_missing: HALT request_user_input
+      - if: q6_fall_through == true AND q6_operator_confirmed_session_zero != true
+        then: HALT request_operator_confirmation_for_session_zero
+      - construct_complete_object:
+          project:
+            name: project_name
+            summary: "session-zero - no prior history"
+            scope: "UNKNOWN - session-zero scope not established yet"
+            non_scope: "UNKNOWN - session-zero exclusions not established yet"
+          session:
+            id: new_session_id
+            timezone: "America/New_York"
+            started: current_timestamp
+            ended: null
+            session_summary: ""
+          tasks: []
+          decisions: []
+          environment:
+            tools: []
+            key_paths:
+              - "{project_root}/02_working/chat-sessions/bootstrap/"
+            schema_state: null
+            dependencies: null
+            notes: "session-zero initialization"
+          context_file_audit: []
+          issues: []
+      - skip: [carry_forward_steps]
+      - jump_to: 9_ensure_dirs
+    else:
+      - continue_to_step_2
+
+  - id: 2_clone_project_identity
+    op: copy_fields
+    from: parsed_prior_bootstrap.project
+    to: new_bootstrap.project
+    fields: [name, summary, scope, non_scope]
+    on_scope_shift_signal_from_user: update_summary_and_flag_for_finalize
+
+  - id: 3_initialize_session_block
+    op: set_fields
+    target: new_bootstrap.session
+    values:
+      id: new_session_id
+      started: current_timestamp
+      ended: null
+      session_summary: ""
+
+  - id: 4_carry_forward_tasks
+    op: filter_then_copy
+    source: parsed_prior_bootstrap.tasks
+    keep_where: status in [ACTIVE, BLOCKED, DEFERRED]
+    drop_where: status in [DONE, CANCELLED]
+    preserve_fields: [id, session_origin]
+    target: new_bootstrap.tasks
+    then_apply: deterministic_ordering_per_command
+
+  - id: 5_drop_decisions
+    op: initialize_empty_list
+    target: new_bootstrap.decisions
+    note: decisions_are_session_scoped_never_carried_forward
+    forbidden: copy_from_parsed_prior_bootstrap_decisions
+
+  - id: 5b_omit_next_session_kickoff
+    op: ensure_key_absent
+    target: new_bootstrap
+    key: next_session_kickoff
+    note: authored_only_at_finalize_of_this_new_session
+
+  - id: 6_carry_forward_environment
+    op: copy_verbatim
+    source: parsed_prior_bootstrap.environment
+    target: new_bootstrap.environment
+    note: will_be_refreshed_at_finalize
+
+  - id: 7_seed_context_file_audit
+    op: copy_from_audit_results
+    source: audit_results.audit_entries
+    target: new_bootstrap.context_file_audit
+    note: will_be_re_evaluated_at_finalize
+
+  - id: 8_carry_forward_open_issues
+    op: filter_then_copy
+    source: parsed_prior_bootstrap.issues
+    keep_where: resolution == null
+    drop_where: resolution != null
+    target: new_bootstrap.issues
+
+  - id: 9_ensure_dirs
+    op: create_if_missing
+    paths: [bootstrap_dir_live]
+    on_fail: HALT cannot_create_required_dirs
+
+  - id: 10_validate_full
+    op: run_validation_gates
+    on_any_fail: halt and report
+
+  - id: 11_confirm_and_handoff
+    op: output
+    format: per_output_contract
+    handoff: project_work_may_begin
+
+output_contract:
+  format: structured
+  required_fields:
+    new_session_id: string
+    new_session_started: ISO_8601
+    project_root: path
+    bootstrap_dir_live: path
+    dirs_created_this_run: list_of_paths
+    carried_forward:
+      tasks:
+        active: integer
+        blocked: integer
+        deferred: integer
+      open_issues: integer
+      context_audit_entries: integer
+    decisions_seeded_empty: true
+    dropped:
+      done_tasks: integer
+      cancelled_tasks: integer
+      resolved_issues: integer
+      prior_decisions_not_propagated: integer
+    flagged_for_finalize: list_of_strings
+    decision_trace:
+      prior_session_id: string_or_null_for_session_zero
+      new_session_id: string
+      session_zero: boolean
+      q6_fall_through: boolean
+      scope_shifted: boolean
+      carry_forward_matrix_applied: true
+      decisions_carry_forward: false
+    status: bootstrap_initialized_in_memory
+    next_actions:
+      - project_work_may_begin
+      - bootstrap-checkpoint_will_fire_on_event_triggers
+      - bootstrap-finalize_required_at_session_end
+
+validation_gates:
+  - id: id_continuity
+    check: all carried-forward task ids match prior bootstrap exactly
+    on_fail: HALT id_corruption_unrecoverable
+  - id: no_done_or_cancelled_carried
+    check: no carried-forward task has status DONE or CANCELLED
+    on_fail: reject and reapply matrix
+  - id: decisions_empty
+    check: count(new_bootstrap.decisions) == 0
+    on_fail: HALT decisions_must_not_be_carried_forward
+  - id: session_id_unique
+    check: new_session_id not collide with existing bootstrap filename in live dir
+    on_fail: increment_timestamp_and_retry
+  - id: schema_completeness
+    check: all required schema fields present even if empty
+    on_fail: reject and populate
+  - id: dirs_present
+    check: bootstrap_dir_live exists on disk
+    on_fail: HALT cannot_create_required_dirs
+  - id: no_archive_dir_created
+    check: init created or required only bootstrap_dir_live while archive housekeeping is deferred
+    on_fail: HALT archive_housekeeping_deferred
+
+error_policy:
+  TASK_ID_COLLISION:
+    detect: prior bootstrap has duplicate task ids
+    actions:
+      - HALT
+      - report: prior_bootstrap_corrupt
+    forbidden: proceed
+
+  SCOPE_DRIFT:
+    detect: project.summary no longer matches active tasks
+    actions:
+      - carry_forward_unchanged
+      - flag_for_finalize_attention
+      - note_in_output: "scope may have drifted — review at finalize"
+
+  SESSION_ZERO_NO_PROJECT_NAME:
+    detect: session_zero_flag == true AND project_name is null
+    actions:
+      - HALT
+      - request_user_input: project_name
+
+  SESSION_ZERO_NO_PROJECT_ROOT:
+    detect: session_zero_flag == true AND project_root is null
+    actions:
+      - HALT
+      - request_user_input: project_root_absolute_path_per_Q4
+
+  Q6_SESSION_ZERO_NOT_CONFIRMED:
+    detect: q6_fall_through == true AND q6_operator_confirmed_session_zero != true
+    actions:
+      - HALT
+      - request_user_input: confirm_session_zero
+    forbidden: silent_session_zero
+
+  DIR_CREATION_FAILED:
+    detect: cannot create bootstrap_dir_live
+    actions:
+      - HALT
+      - report_error_with_attempted_path
+      - request_user_intervention
+
+anti_drift:
+  - never_carry_DONE_or_CANCELLED
+  - never_carry_decisions
+  - never_renumber_ids
+  - never_skip_when_session_zero
+  - never_begin_work_before_completion
+  - never_skip_dir_creation
+  - never_create_archive_dir_while_archive_housekeeping_deferred
+  - never_session_zero_from_recovery_without_operator_confirmation
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_meta_commentary_about_what_will_be_done
+  - never_describe_carry_forward_in_prose_emit_counts_only
+  - never_explain_which_tasks_were_dropped_in_natural_language
+  - never_ask_clarifying_questions_before_executing_unless_session_zero_inputs_missing
+  - first_visible_token_must_be_populated_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - id_continuity_violation_is_HALT_not_warning
+  - decisions_carry_forward_violation_is_HALT_not_warning

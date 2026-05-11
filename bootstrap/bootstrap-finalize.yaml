@@ -1,0 +1,428 @@
+instructions_md: |
+  # bootstrap-finalize (agent prose)
+
+  ## Authority citations
+  - Operational protocol: `C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md`
+  - Task carry-forward matrix vocabulary: `corpus/charter--1a017eabb2e8.yaml`
+    → `payload.session_continuity_vocabulary.task_carry_forward_matrix`
+    (TEMPORARY_TENANT — see that block's `todo` for extraction conditions).
+  - References to "carry forward" in this file describe finalize-time
+    enforcement. Authoritative status enums and `carry_forward` booleans
+    live in the charter. If they ever disagree, the charter wins.
+
+  You finalize the in-memory bootstrap and persist it to disk. This runs
+  once at session end.
+
+  ## Steps
+
+  1. Resolve the live bootstrap directory:
+     `{project_root}/02_working/chat-sessions/bootstrap/`. Create it if missing.
+  2. Final task sweep — for each task confirm status matches reality and
+     required-by-status fields are populated (BLOCKED needs `blockers`,
+     DEFERRED needs `deferred_reason`, CANCELLED needs `cancelled_reason`,
+     DONE needs `session_completed = current_session_id`). Fix in place
+     on any gap.
+  3. Final decision sweep — for each decision in this session apply the
+     zero-context test, rewrite rationale on fail, verify supersedes chain
+     is intact within the session. Decisions are session-scoped; do not
+     carry forward.
+  4. Refresh the environment snapshot: `tools`, `key_paths`, `schema_state`,
+     `dependencies`, `notes`.
+  5. Re-evaluate `context_file_audit` including any changes made this
+     session — this becomes the next session's pre-check input.
+  6. Confirm each open issue's `severity` and `resolution` (or null).
+  7. Compose `session_summary` in 2-4 sentences covering what was
+     accomplished, what remains, open questions or risks. If zero
+     substantive work occurred, write `"no substantive work this session"`.
+  8. Compose `next_session_kickoff` on `in_memory_bootstrap`:
+     - `bootstrap_file_absolute` = canonical `full_path` about to be written
+       (derive from `bootstrap_dir_live`, `project_name`, `session.id`,
+       supplemental suffix if applicable).
+     - `project_root` and `project_name` = current inputs (must match
+       `project.name`).
+     - `path_1_operator_template` = paste-ready lines: `@` plus absolute
+       path to this YAML, plus one sentence: run `bootstrap-start` Path 1
+       only; complete ingest→audit→init without documentation fishing
+       unless a HALT in `do_not_request_from_operator_unless`.
+     - `frozen_intent`: at least one bullet derived from ACTIVE tasks and
+       open issues (non-negotiables for the next agent).
+     - `truth_anchors.command_md` and `schema_yaml`: absolute paths to
+       `C:/Users/rtoth/.cursor/commands/bootstrap/COMMAND.md` and
+       `schema.yaml` (adjust if deployment differs; must be non-empty).
+     - `truth_anchors.validate_script`: path to `validate_bootstrap.py` or
+       `""` if unused in this project.
+     - `truth_anchors.extra`: other authoritative paths (skills, routers).
+     - `read_first`: ordered list, minimum two entries: governance
+       (`COMMAND.md`) and this bootstrap file path, then top `environment.key_paths` as needed.
+     - `assumptions_next_session_must_hold`: explicit continuity
+       assumptions (or `[]` if none).
+     - `known_gaps`: ACTIVE/BLOCKED/DEFERRED hooks, stale audits, open
+       issues summaries (or `[]`).
+     - `do_not_request_from_operator_unless`: HALT-only conditions
+       (e.g. unreadable bootstrap path, subcommand HALT).
+  9. Set `session.ended = current_timestamp`.
+  10. Run all validation gates. HALT before write on any failure.
+  11. Compose full path:
+      `{bootstrap_dir_live}/{project_name}_{session_id}.yaml`. (Append `S`
+      suffix when `supplemental: true`.) If file already exists at that
+      path, HALT FILENAME_COLLISION — never overwrite.
+  12. Serialize in-memory bootstrap to YAML. On serialization exception,
+      HALT and emit the structured emergency fallback payload.
+  13. Write file. Retry once on write failure. On second failure, HALT
+      and emit the structured emergency fallback payload so content is not lost.
+  14. Read back to verify file exists and is non-empty. HARD_FAILURE on
+      mismatch.
+  15. Emit per output contract.
+
+  ## Hard rules
+
+  - Never overwrite an existing bootstrap file. Filename collision is HALT.
+  - Never skip validation. Validation failure blocks write — no partial
+    persistence.
+  - Never skip composing `next_session_kickoff` before write —
+    it is mandatory on every finalized persisted bootstrap.
+  - Never invent `session_summary`. If session was empty, use the explicit
+    `"no substantive work this session"` string.
+  - Never carry decisions forward — they are session-scoped.
+  - Never modify the CONTENT of a prior bootstrap file.
+  - Never begin new project work after finalization.
+  - Never emit a session recap in chat. The `session_summary` field IS the
+    recap.
+  - Never describe what was written in prose — the output contract carries
+    the diff.
+  - The first visible token is the populated output contract.
+  - Emergency exception: if serialization/write failure risks losing bootstrap
+    content, the structured emergency fallback payload may appear before or
+    instead of the normal output contract.
+  - Lose-bootstrap-content is FORBIDDEN. If serialization fails or write fails
+    twice, emit the emergency fallback payload.
+
+command: bootstrap-finalize
+phase: 3
+step: 5
+invokes_after: bootstrap-checkpoint
+invokes_before: null
+governed_by: COMMAND.md
+mission: finalize in-memory bootstrap and persist to canonical project-relative path
+
+scope:
+  - final task status sweep
+  - final decision sweep with zero_context_test (within current session only)
+  - refresh environment snapshot
+  - finalize context_file_audit
+  - confirm open issues
+  - write session_summary
+  - compose next_session_kickoff mandatory kickoff envelope for following session
+  - set session.ended timestamp
+  - validate full bootstrap
+  - write YAML to canonical project-relative path
+
+non_scope:
+  - modifying CONTENT of any prior bootstrap file
+  - carrying state forward (next session does that)
+  - carrying decisions across sessions (decisions are session-scoped)
+  - beginning new work after finalization
+  - permanent deletion (Remove-Item) of any file
+
+authority:
+  canonical: in_memory_bootstrap
+  on_conflict: in_memory_state_wins_over_prior_disk_state
+  carry_forward_matrix_definition_authority:
+    file: corpus/charter--1a017eabb2e8.yaml
+    block: payload.session_continuity_vocabulary.task_carry_forward_matrix
+    status: TEMPORARY_TENANT
+    note: references_to_carry_forward_in_this_file_describe_finalize_enforcement_authoritative_values_live_in_charter
+
+inputs:
+  required:
+    in_memory_bootstrap: object
+    current_timestamp: ISO_8601
+    project_name: string
+    project_root: absolute_path
+  derived:
+    session_id:
+      source: in_memory_bootstrap.session.id
+      regeneration: forbidden
+    is_supplemental: in_memory_bootstrap.supplemental == true
+    bootstrap_dir_live: "{project_root}/02_working/chat-sessions/bootstrap/"
+    filename_canonical: "{project_name}_{session_id}.yaml"
+    filename_supplemental: "{project_name}_{session_id}S.yaml"
+    filename: "filename_supplemental if is_supplemental else filename_canonical"
+    full_path: "{bootstrap_dir_live}/{filename}"
+  ignored:
+    - session.started_timestamp_modifications
+    - task_id_modifications
+    - decision_id_modifications
+
+algorithm:
+  - id: 1_resolve_directories
+    op: ensure_dirs
+    paths: [bootstrap_dir_live]
+    create_if_missing: true
+    on_fail: HALT cannot_create_required_dirs
+
+  - id: 2_final_task_sweep
+    op: iterate_tasks
+    per_task:
+      - confirm: status_matches_reality
+      - if_BLOCKED: require blockers_populated
+      - if_DEFERRED: require deferred_reason_populated
+      - if_CANCELLED: require cancelled_reason_populated
+      - if_DONE: require session_completed == current_session_id
+    on_any_fail: fix_in_place
+
+  - id: 3_final_decision_sweep
+    op: iterate_decisions
+    per_decision:
+      - apply: zero_context_test
+      - on_fail: rewrite_rationale
+      - verify: supersedes_chain_intact_within_session
+    note: decisions are session-scoped; only this session's decisions are present
+
+  - id: 4_refresh_environment
+    op: capture_current_state
+    target: in_memory_bootstrap.environment
+    fields_to_refresh: [tools, key_paths, schema_state, dependencies, notes]
+
+  - id: 5_finalize_context_file_audit
+    op: re_evaluate
+    source: in_memory_bootstrap.context_file_audit
+    apply_changes_made_this_session: true
+    target: in_memory_bootstrap.context_file_audit
+    note: this_becomes_next_session_pre_check_input
+
+  - id: 6_confirm_open_issues
+    op: iterate_issues
+    per_issue:
+      - confirm: severity
+      - confirm: resolution_or_null
+
+  - id: 7_write_session_summary
+    op: compose
+    target: in_memory_bootstrap.session.session_summary
+    length: 2-4_sentences
+    required_content:
+      - what_was_accomplished
+      - what_remains
+      - open_questions_or_risks
+    on_no_substantive_work: write_explicit_no_substantive_work_note
+
+  - id: 7b_compose_next_session_kickoff
+    op: populate_next_session_kickoff
+    target: in_memory_bootstrap.next_session_kickoff
+    derive:
+      bootstrap_file_absolute: full_path
+      project_root: project_root
+      project_name: project_name
+    require:
+      path_1_operator_template_non_empty: true
+      frozen_intent_min_items: 1
+      read_first_min_items: 2
+      truth_anchors_command_and_schema: true
+    source_context_from: [in_memory_bootstrap.tasks, in_memory_bootstrap.issues, in_memory_bootstrap.environment, in_memory_bootstrap.context_file_audit]
+    on_fail: HALT kickoff_incomplete
+
+  - id: 8_set_ended_timestamp
+    op: set_field
+    target: in_memory_bootstrap.session.ended
+    value: current_timestamp
+
+  - id: 9_validate_full
+    op: run_all_validation_gates
+    on_any_fail: HALT_before_write
+
+  - id: 10_check_filename_collision
+    op: check_path_existence
+    target: full_path
+    on_exists: HALT FILENAME_COLLISION
+
+  - id: 11_serialize
+    op: yaml_serialize
+    input: in_memory_bootstrap
+    sets: yaml_string
+    on_failure: HALT YAML_SERIALIZATION_FAILED with emergency_bootstrap_fallback
+
+  - id: 12_write_file
+    op: write_file
+    path: full_path
+    content: yaml_string
+    on_failure: retry_once_then_HALT_with_emergency_bootstrap_fallback
+
+  - id: 13_verify_write
+    op: read_back_and_check
+    target: full_path
+    check: exists_and_non_empty
+    on_fail: HARD_FAILURE
+
+  - id: 14_emit
+    op: output
+    format: per_output_contract
+
+output_contract:
+  format: structured
+  required_fields:
+    file_written: absolute_path
+    is_supplemental: boolean
+    session_id: string
+    session_ended: ISO_8601
+    project_root: path
+    bootstrap_dir_live: path
+    final_counts:
+      tasks:
+        active: integer
+        blocked: integer
+        deferred: integer
+        done_this_session: integer
+        cancelled_this_session: integer
+      decisions_this_session: integer
+      issues_open: integer
+      issues_resolved_this_session: integer
+      context_audit_entries: integer
+    session_summary: string  # the 2-4 sentences written
+    next_session_kickoff:
+      bootstrap_file_absolute: path
+      path_1_operator_template: string
+      frozen_intent_count: integer
+      read_first_count: integer
+    flagged_for_next_session:
+      type: list
+      filter: context_file_audit entries with status != CURRENT
+    decision_trace:
+      validation_gates_passed: "{integer}/{total}"
+      directories_created: list_of_paths
+      write_status: {enum: [ok, failed]}
+      bootstrap_size_bytes: integer
+    emergency_bootstrap_fallback:
+      type: object_or_null
+      fields_when_present:
+        failure_type: YAML_SERIALIZATION_FAILED | WRITE_FAILED
+        exact_error: string
+        intended_path: absolute_path
+        bootstrap_yaml_or_internal_state: string
+    handoff: bootstrap_finalized_session_complete_next_session_begins_with_bootstrap-start_dialog
+
+validation_gates:
+  - id: session_id_unchanged
+    check: in_memory_bootstrap.session.id == value_set_by_init
+    on_fail: HALT id_mutation_forbidden
+  - id: ended_after_started
+    check: session.ended > session.started
+    on_fail: HALT timestamp_inconsistency
+  - id: all_required_fields_populated
+    check: every required schema field is non-empty (UNKNOWN — {reason} accepted)
+    on_fail: reject and populate
+  - id: blocked_have_blockers
+    check: every BLOCKED task has non-null blockers
+    on_fail: reject and populate
+  - id: deferred_have_reason
+    check: every DEFERRED task has non-null deferred_reason
+    on_fail: reject and populate
+  - id: cancelled_have_reason
+    check: every CANCELLED task has non-null cancelled_reason
+    on_fail: reject and populate
+  - id: done_have_session_completed
+    check: every DONE task has session_completed populated
+    on_fail: reject and populate
+  - id: session_summary_present
+    check: session.session_summary non-empty AND length 2-4 sentences
+    on_fail: reject and write
+  - id: next_session_kickoff_populated
+    check: next_session_kickoff present with bootstrap_file_absolute == full_path, path_1_operator_template non-empty, len(frozen_intent) >= 1, len(read_first) >= 2, truth_anchors.command_md and .schema_yaml non-empty, list fields assumptions/known_gaps/do_not_request are lists (use [] not null)
+    on_fail: reject and populate
+  - id: ended_timestamp_present
+    check: session.ended is non-null
+    on_fail: reject and set
+  - id: yaml_serializable
+    check: in_memory_bootstrap serializes to valid YAML
+    on_fail: HALT investigate
+  - id: filename_no_collision
+    check: full_path does not exist
+    on_fail: HALT alert_user_no_overwrite
+  - id: write_verification
+    check: file exists at full_path AND non-empty
+    on_fail: HARD_FAILURE retry_once
+  - id: emergency_fallback_scope
+    check: emergency fallback appears only for YAML_SERIALIZATION_FAILED or WRITE_FAILED
+    on_fail: HALT invalid_emergency_fallback
+
+error_policy:
+  DIRECTORY_MISSING:
+    detect: bootstrap_dir does not exist
+    actions:
+      - create_directory
+      - log_in_decision_trace
+      - continue
+
+  FILENAME_COLLISION:
+    detect: file already exists at full_path
+    actions:
+      - HALT
+      - report_to_user
+      - investigate: session_id_collision_or_tampering
+    forbidden: overwrite
+
+  WRITE_FAILED:
+    detect: file system write error
+    actions:
+      - retry_once
+      - on_second_failure:
+          - HALT
+          - report_exact_error
+          - emit_emergency_bootstrap_fallback:
+              failure_type: WRITE_FAILED
+              exact_error: error_message
+              intended_path: full_path
+              bootstrap_yaml_or_internal_state: yaml_string
+    forbidden: lose_bootstrap_content
+
+  VALIDATION_FAILURE:
+    detect: any validation_gate fails
+    actions:
+      - do_not_write
+      - report_exact_gate_failure
+      - offer_auto_fix_where_possible:
+          - backfill_UNKNOWN
+          - generate_placeholder_session_summary
+      - else_wait_for_user_fix
+
+  EMPTY_SESSION:
+    detect: zero tasks completed AND zero decisions made AND zero issues
+    actions:
+      - write_bootstrap_anyway
+      - session_summary: "no substantive work this session"
+    note: preserves_continuity_timeline
+
+  YAML_SERIALIZATION_FAILED:
+    detect: yaml_serialize raised exception
+    actions:
+      - HALT
+      - report_exact_error
+      - emit_emergency_bootstrap_fallback:
+          failure_type: YAML_SERIALIZATION_FAILED
+          exact_error: error_message
+          intended_path: full_path
+          bootstrap_yaml_or_internal_state: in_memory_bootstrap_debug_dump
+
+anti_drift:
+  - never_overwrite_existing_bootstrap
+  - never_skip_validation
+  - never_invent_session_summary
+  - never_modify_CONTENT_of_prior_bootstraps
+  - never_carry_forward_decisions
+  - never_skip_finalize_for_speed
+  - never_narrate_or_summarize_this_yaml
+  - never_emit_preamble_acknowledgment_or_plan_of_action_text
+  - never_describe_the_algorithm_in_prose_to_the_user
+  - never_emit_meta_commentary_about_what_will_be_done
+  - never_emit_session_recap_in_chat_session_summary_field_is_the_only_recap
+  - never_describe_what_was_written_in_prose_output_contract_carries_the_diff
+  - emergency_fallback_payload_overrides_first_token_rule_only_for_serialization_or_write_failure
+  - never_omit_next_session_kickoff_on_persisted_bootstrap
+  - never_propose_changes_before_writing_apply_per_algorithm_then_emit
+  - never_ask_clarifying_questions_before_executing
+  - never_request_user_confirmation_to_begin
+  - first_visible_token_must_be_populated_output_contract
+  - silent_setup_visible_results_only
+  - reading_yaml_is_silent_setup_not_a_milestone_to_announce
+  - validation_failure_blocks_write_no_partial_persistence
+  - filename_collision_is_HALT_never_overwrite

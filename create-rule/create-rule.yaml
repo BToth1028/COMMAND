@@ -1,0 +1,35 @@
+command: create-rule
+type: atomic
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — .cursor rule (.mdc) per dispatch_table.RULE. Today: validate handoff only.
+
+scope:
+  - request_type RULE
+  - Required frozen fields per master-router dispatch_table.RULE
+
+non_scope:
+  - SKILL / COMMAND artifact shapes
+
+authority:
+  canonical:
+    router_contract: "C:\Users\rtoth\.cursor\commands\\master-router\\COMMAND.md"
+
+dispatch_reference:
+  master_router_section: dispatch_table.RULE
+
+required_handoff_keys:
+  - rule_name
+  - rule_description
+  - scope_kind
+  - scope_value
+  - rule_body
+
+runner:
+  python_module: create-rule_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-rule"
+  draft_exit_code: 2

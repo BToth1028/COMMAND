@@ -1,0 +1,41 @@
+command: create-code
+type: atomic
+phase: 1.0
+implementation_status: DRAFT_SPEC
+classification: creation_execution_child
+governed_by: COMMAND.md
+
+mission: >-
+  DRAFT — Will materialise one source file for CODE dispatch (native write with
+  project conventions). Today: validate handoff only.
+
+scope:
+  - Parse handoff; require request_type CODE
+  - Verify required_inputs_frozen: language_label, target_path_absolute, module_or_function_purpose
+  - Emit DRAFT_ONLY (exit 2)
+
+non_scope:
+  - Code review / audit (separate commands)
+  - Router classification
+
+authority:
+  canonical:
+    router_contract: "C:\Users\rtoth\.cursor\commands\\master-router\\COMMAND.md"
+
+dispatch_reference:
+  master_router_section: dispatch_table.CODE
+
+required_handoff_keys:
+  - language_label
+  - target_path_absolute
+  - module_or_function_purpose
+
+optional_handoff_keys:
+  - body
+  - dependency_declarations
+  - associated_test_path
+
+runner:
+  python_module: create-code_run.py
+  working_directory: "C:\Users\rtoth\.cursor\commands\\create-code"
+  draft_exit_code: 2
