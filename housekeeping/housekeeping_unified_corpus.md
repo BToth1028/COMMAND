@@ -51,7 +51,7 @@ This file is the working reference for the housekeeping corpus. It is not a past
 The word **housekeeping** names multiple systems. Treat the artifact type as the dispatch key.
 
 1. **Cursor command / session file hygiene (`command.housekeeping.yaml`):** session-touched files plus optional stale sweep; approval-gated keep / relocate / rename / remove proposals; removal only through the desktop Recycle Bin.
-2. **Automated janitor (`proc-housekeep.json` + `kn.wkfl..._housekeep.md`):** delt-scan → pend-clnp → fldr-clnp; webhook/manual/scheduled; no per-file PARA classification.
+2. **Automated janitor (`proc-housekeep.json` + `kn.wkfl..._housekeep.md`):** delt-scan → pend-clnp → fldr-clnp; webhook/manual/scheduled; no per-file JDex classification.
 3. **Human file maintenance (`kn.wkfl..._file-mant.md`):** newest-first inventory, concept review, 4-axis grading, route to file-comp / refine / hold / archive / delete staging.
 4. **Snippet lifecycle (`snip-harv` + `snip-stor`):** extract reusable code and store it in `li/code/snippets/`; contains an unresolved filename scheme conflict.
 5. **Legacy vault housekeeping (`kn.proc` excerpt):** seven-step compliance / registry / taxonomy / archive review; historical unless the missing procedure file is restored.
@@ -99,7 +99,7 @@ The word **housekeeping** names multiple systems. Treat the artifact type as the
 **Scope and non-scope:**
 
 - In scope: session-touched file enumeration, optional stale-folder sweep when `cross_session_sweep` is enabled, multi-check pipeline, per-file proposals, approvals, execution, records, git hints.
-- Out of scope: bootstrap finalization, PARA logic itself, reorganization outside session scope unless sweep enabled, file body rewrites, permanent deletion.
+- Out of scope: bootstrap finalization, JDex logic itself, reorganization outside session scope unless sweep enabled, file body rewrites, permanent deletion.
 
 **Inputs and defaults:**
 
@@ -115,7 +115,7 @@ The word **housekeeping** names multiple systems. Treat the artifact type as the
 3. Files referenced in completed tasks when integrated.
 4. If `cross_session_sweep`: stale-looking files discovered by folder search, non-canonical locations, and prior `STALE` audit flags.
 
-**Per-file check order:** stub size → duplicate overlap → inbound reference scan → PARA classification → naming compliance → location compliance → cursory relevance review.
+**Per-file check order:** stub size → duplicate overlap → inbound reference scan → JDex classification → naming compliance → location compliance → cursory relevance review.
 
 **Proposal enum:** `REMOVE`, `MERGE_OR_REMOVE`, `RELOCATE_AND_RENAME`, `RELOCATE`, `RENAME`, `KEEP_AS_IS`.
 
@@ -134,9 +134,9 @@ The word **housekeeping** names multiple systems. Treat the artifact type as the
 
 **Forbidden:** `Remove-Item`, Shift+Delete, `delete_permanently`, fallback to permanent delete if Recycle Bin fails.
 
-**Validation gates:** approval required; factual justification required; PARA present for kept/relocated files; reference scans populated; inbound-reference removals acknowledged; Recycle Bin destination enforced; in-depth review before every removal; second approval when reconsideration info appears; zero-context decision rationale; integrated checkpoint write-back or HARD_FAILURE; decision-id collision check.
+**Validation gates:** approval required; factual justification required; JDex present for kept/relocated files; reference scans populated; inbound-reference removals acknowledged; Recycle Bin destination enforced; in-depth review before every removal; second approval when reconsideration info appears; zero-context decision rationale; integrated checkpoint write-back or HARD_FAILURE; decision-id collision check.
 
-**Error policies:** `PARA_SKILL_UNAVAILABLE`, `AMBIGUOUS_DUPLICATE`, `REFERENCE_BREAKAGE_RISK`, `NAMING_CONVENTION_UNDEFINED`, `SESSION_FILES_UNDETECTABLE`, `GIT_NOT_PRESENT`, `USER_REJECTS_ALL`, `RECYCLE_BIN_UNAVAILABLE`, `CHECKPOINT_INTEGRATION_FAILED`.
+**Error policies:** `JDex_SKILL_UNAVAILABLE`, `AMBIGUOUS_DUPLICATE`, `REFERENCE_BREAKAGE_RISK`, `NAMING_CONVENTION_UNDEFINED`, `SESSION_FILES_UNDETECTABLE`, `GIT_NOT_PRESENT`, `USER_REJECTS_ALL`, `RECYCLE_BIN_UNAVAILABLE`, `CHECKPOINT_INTEGRATION_FAILED`.
 
 **Output contract:** structured summary with mode, session id, counts, user decisions, applied / failed actions, decision records, audit updates, bootstrap integration status, git suggestions, decision trace, and handoff.
 
@@ -380,7 +380,7 @@ The `DISTILLED_*` files are not operational authorities, but they add useful aud
 
 ### Hidden assumptions worth preserving
 
-- `para-ontology` is available when the Cursor command needs classification; if unavailable, do not guess.
+- `jdex-ontology` is available when the Cursor command needs classification; if unavailable, do not guess.
 - HTTP services at `host.docker.internal:5070` implement the module contracts shown in JSON.
 - The v3.1 snippet spec is stable enough for harvest enrichment.
 - The SpecStory excerpt accurately reflects the missing `kn.proc` file.

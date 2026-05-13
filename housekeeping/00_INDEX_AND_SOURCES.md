@@ -6,7 +6,7 @@ Generated: 2026-04-24. This folder contains copies of primary sources found by s
 
 | Local copy | Original path |
 |------------|---------------|
-| `housekeeping.yaml` | `C:\Users\rtoth\.cursor\commands\housekeeping\housekeeping.yaml` — **Cursor command spec**: session file review, PARA placement, stub/duplicate detection, soft delete, merge proposals, git hints. |
+| `housekeeping.yaml` | `C:\Users\rtoth\.cursor\commands\housekeeping\housekeeping.yaml` — **Cursor command spec**: session file review, JDex placement, stub/duplicate detection, soft delete, merge proposals, git hints. |
 | `c-code__staging__Automation__n8n__kn.wkfl.00.01.19_housekeep.md` | `C:\dev\50-59-infrastructure-and-devops\56-scripts-and-automation\56.04-n8n-workflows\kn.wkfl.00.01.19_housekeep.md` — **workflow doc**: delt-scan → pend-clnp → fldr-clnp; n8n integration. |
 | `c-code__staging__Automation__n8n__kn.wkfl.00.01.19_file-mant.md` | `C:\dev\50-59-infrastructure-and-devops\56-scripts-and-automation\56.04-n8n-workflows\kn.wkfl.00.01.19_file-mant.md` — **file maintenance**: newest-first inventory, concept review, 4-axis grading, route PROMOTE/REFINE/HOLD/ARCHIVE/DELETE, then fldr-clnp. |
 | `rtoth-code__va__ar__Automations__Workflows__proc-housekeep.json` | **n8n orchestrator** JSON (exported janitor graph: mod-delt-scan, mod-pend-clnp, mod-fldr-clnp) — correlate with **`56.04-n8n-workflows`** + **`kn.wkfl.00.01.19_housekeep.md`** on **`C:\dev`**. |

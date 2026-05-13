@@ -7,7 +7,7 @@ governed_by: null
 mission: review session-touched files and stale candidates, then propose retain/relocate/rename/recycle-bin removal per file with user approval
 
 dependencies:
-  para-ontology:
+  jdex-ontology:
     role: classification_and_canonical_placement_authority
     invocation_point: per_file_during_check_pipeline
     fallback_if_unavailable: halt_classification_step_and_request_user_input
@@ -44,7 +44,7 @@ scope:
 non_scope:
   - finalizing the bootstrap (bootstrap-finalize handles that)
   - modifying or deleting any file without explicit user approval
-  - PARA classification logic itself (delegated to para-ontology skill)
+  - JDex classification logic itself (delegated to jdex-ontology skill)
   - reorganizing files outside session scope unless cross_session_sweep enabled
   - rewriting content of files (only relocate, rename, or remove)
   - permanent deletion
@@ -53,8 +53,8 @@ non_scope:
 authority:
   canonical:
     file_existence: workspace_filesystem
-    classification_logic: para-ontology_skill
-    canonical_placement: para-ontology_skill
+    classification_logic: jdex-ontology_skill
+    canonical_placement: jdex-ontology_skill
     naming_convention: project_documented_convention_or_skip
     user_approval: required_for_all_destructive_or_modification_actions
     removal_process: this_housekeeping_command
@@ -158,12 +158,12 @@ algorithm:
       - id: c_inbound_reference_scan
         op: scan_workspace_for_references_to_this_file
         sets: incoming_references (list_of_paths_with_line_numbers)
-      - id: d_para_classification
+      - id: d_jdex_classification
         op: invoke_skill
-        target: para-ontology
+        target: jdex-ontology
         input_fields: [filename, content_summary, current_location]
-        sets: para_class (PROJECT|AREA|RESOURCE|ARCHIVE), canonical_path
-        on_skill_unavailable: raise PARA_SKILL_UNAVAILABLE
+        sets: jdex_class (resolved AC.ID matching ^\d{2}\.\d{2}$), canonical_path
+        on_skill_unavailable: raise JDEX_SKILL_UNAVAILABLE
       - id: e_naming_compliance
         op: validate_against_convention
         input: filename
@@ -194,16 +194,16 @@ algorithm:
         justification_template: "significant overlap with {duplicate_of} ({overlap_score}); user choice required"
       - if: location_compliant == false AND name_compliant == false
         propose: RELOCATE_AND_RENAME
-        justification_template: "PARA classifies as {para_class}; canonical path is {canonical_path}; current name violates {convention_rule}"
+        justification_template: "JDex classifies as {jdex_class}; canonical path is {canonical_path}; current name violates {convention_rule}"
       - if: location_compliant == false
         propose: RELOCATE
-        justification_template: "PARA classifies as {para_class}; currently at {current_location}; canonical path is {canonical_path}"
+        justification_template: "JDex classifies as {jdex_class}; currently at {current_location}; canonical path is {canonical_path}"
       - if: name_compliant == false
         propose: RENAME
         justification_template: "current name violates {convention_rule}; proposed: {proposed_rename}"
       - else:
         propose: KEEP_AS_IS
-        justification_template: "PARA classifies as {para_class}; correctly placed at {canonical_path}; naming compliant"
+        justification_template: "JDex classifies as {jdex_class}; correctly placed at {canonical_path}; naming compliant"
     each_proposal_emits:
       - file: path
       - action: enum
@@ -382,7 +382,7 @@ output_contract:
       approval_mode: enum
       removal_destination: enum
       candidate_files_count: integer
-      para_invocations: integer
+      jdex_invocations: integer
       reference_scans: integer
       duplicates_detected: integer
       stubs_detected: integer
@@ -399,9 +399,9 @@ validation_gates:
   - id: no_unjustified_proposals
     check: every proposal has non-empty justification with specific facts
     on_fail: reject and rewrite
-  - id: para_classification_present_for_kept
-    check: every KEEP_AS_IS or RELOCATE proposal has para_class assigned
-    on_fail: re-invoke para-ontology
+  - id: jdex_classification_present_for_kept
+    check: every KEEP_AS_IS or RELOCATE proposal has jdex_class assigned
+    on_fail: re-invoke jdex-ontology
   - id: reference_integrity_checked
     check: every REMOVE, RELOCATE, RENAME has incoming_references field populated (may be empty list)
     on_fail: reject and run reference scan
@@ -428,11 +428,11 @@ validation_gates:
     on_fail: reassign next available
 
 error_policy:
-  PARA_SKILL_UNAVAILABLE:
-    detect: para-ontology skill cannot be invoked
+  JDEX_SKILL_UNAVAILABLE:
+    detect: jdex-ontology skill cannot be invoked
     actions:
       - flag_to_user
-      - request: classify_manually OR skip_PARA_checks_with_acknowledgment
+      - request: classify_manually OR skip_jdex_checks_with_acknowledgment
     forbidden: guess_classification
 
   AMBIGUOUS_DUPLICATE:
@@ -498,10 +498,10 @@ anti_drift:
   - never_remove_after_only_cursory_review
   - never_skip_in_depth_review_before_removal
   - never_skip_second_operator_approval_when_new_information_surfaces
-  - never_invent_para_classifications
+  - never_invent_jdex_classifications
   - never_silently_resolve_duplicates
   - never_remove_files_with_incoming_references_without_acknowledgment
-  - never_proceed_after_para_unavailable_without_user_consent
+  - never_proceed_after_jdex_unavailable_without_user_consent
   - never_skip_reference_integrity_check
   - never_permanently_delete
   - never_use_Remove-Item

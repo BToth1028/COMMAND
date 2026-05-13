@@ -49,7 +49,7 @@
 
 **D0** — D0.C1 corpus copy scope; D0.C2 four themes; D0.C3 `kn.proc` not under `c:\code`; D0.C4 P5 is DB batch not file cleanup.
 
-**D1** — D1.C1 session-touched review + approval; D1.C2 PARA delegation, no guess; D1.C3 pipeline stub→dup→refs→PARA→name→loc; D1.C4 proposal enum; D1.C5 soft `_trash` default; D1.C6 REMOVE+refs ack; D1.C7 integrated checkpoint HARD_FAILURE; D1.C8 zero-context rationale; D1.C9 numeric: stub_threshold 50, duplicate 0.85/0.95, gates.
+**D1** — D1.C1 session-touched review + approval; D1.C2 JDex delegation, no guess; D1.C3 pipeline stub→dup→refs→JDex→name→loc; D1.C4 proposal enum; D1.C5 soft `_trash` default; D1.C6 REMOVE+refs ack; D1.C7 integrated checkpoint HARD_FAILURE; D1.C8 zero-context rationale; D1.C9 numeric: stub_threshold 50, duplicate 0.85/0.95, gates.
 
 **D2** — D2.C1 periodic compliance + pending cleanup; D2.C2 seven named steps; D2.C3 daily vs weekly schedules; D2.C4 archive immutability rule; D2.C5 numeric: `>14` days pending.
 
@@ -72,7 +72,7 @@
 | Id | S0 | CWA | Collapse | K0 | Recursive | Quant (dim 5 feed) | U# |
 |----|-----|-----|----------|----|-----------|---------------------|-----|
 | D0 | Index | Listed files only | Theme map | D0.C2 | External pointers | Low — meta inventory | — |
-| D1 | User+FS+PARA | Session/explicit list | One action/file | Approval+refs+soft default | Integrated bootstrap | **High** — thresholds, enums | — |
+| D1 | User+FS+JDex | Session/explicit list | One action/file | Approval+refs+soft default | Integrated bootstrap | **High** — thresholds, enums | — |
 | D2 | Lost kn.proc | 7 steps + schedules | Table vs narrative | Archive rule | Automation implied | **Med** — 14d, step IDs | U#1 |
 | D3 | DB artifacts | Schema names | Batch ≠ file hygiene | Audit triggers | phase scripts | **Med** — SQL row fixes | U#2 |
 | D4 | Plan author | Pending set | Xref injection | Modular graph | file-comp deps | Low–Med | — |
@@ -180,7 +180,7 @@ Irreducible quantitative atoms (for Block 2 **Q** registry):
 
 | Id | Assumption | Depends |
 |----|------------|---------|
-| A#1 | PARA skill callable | D1 |
+| A#1 | JDex skill callable | D1 |
 | A#2 | Module HTTP API matches JSON bodies | D9 |
 | A#3 | v3.1 snippet schema stable | D7 |
 | A#4 | SpecStory matches missing kn.proc | D2,D0 |
@@ -201,7 +201,7 @@ Irreducible quantitative atoms (for Block 2 **Q** registry):
 
 ### (2) Authority topology
 
-- **R1:** User > PARA > FS; validators in D1 `validation_gates` and `error_policy`.
+- **R1:** User > JDex > FS; validators in D1 `validation_gates` and `error_policy`.
 - **R2/R3/R4:** Module contracts implied by D5; transport authority D9.
 - **R5/R6:** User approval nodes; grading module authority for scores.
 - **R7/R8:** User triage + library layout; script authority for scan only.

@@ -60,8 +60,8 @@
 | Anchor | Claim |
 |--------|--------|
 | D1.C1 | Command mission: review session-touched files; propose retain/relocate/rename/remove with **user approval**. |
-| D1.C2 | Destructive or modifying actions require approval; PARA classification delegated to `para-ontology`; no guessing if unavailable. |
-| D1.C3 | Check pipeline order: stub → duplicate overlap → inbound references → PARA → naming → location. |
+| D1.C2 | Destructive or modifying actions require approval; JDex classification delegated to `jdex-ontology`; no guessing if unavailable. |
+| D1.C3 | Check pipeline order: stub → duplicate overlap → inbound references → JDex → naming → location. |
 | D1.C4 | Proposals: REMOVE (stub / near-duplicate), MERGE_OR_REMOVE, RELOCATE, RENAME, RELOCATE_AND_RENAME, KEEP_AS_IS. |
 | D1.C5 | Soft delete default to `{workspace_root}/_trash/{session_id_or_timestamp}/`; hard delete requires explicit user election. |
 | D1.C6 | REMOVE with inbound references requires explicit acknowledgment after presenting list. |
@@ -143,7 +143,7 @@
 | Id | S0 (authority) | CWA (closed world) | Collapse intent | K0 (kernel) | Recursive notes | U# |
 |----|----------------|--------------------|-----------------|-------------|-----------------|-----|
 | D0 | Index author | Files listed are the corpus; external SpecStory paths are pointers | Maps four housekeeping themes | D0.C2–C4 | N/A | — |
-| D1 | User + workspace FS + PARA skill | Session scope or explicit list; no bootstrap finalize here | One proposal per file; enum actions | D1.C1–C8 | Integrated vs standalone branches | — |
+| D1 | User + workspace FS + JDex skill | Session scope or explicit list; no bootstrap finalize here | One proposal per file; enum actions | D1.C1–C8 | Integrated vs standalone branches | — |
 | D2 | `kn.proc` doc (not in repo) | Seven steps + schedules + archive rule | Compress chat to procedure table | D2.C1–C4 | Triggers/schedules imply automation not fully in D5/D9 | **U#1** vs D5/D9 |
 | D3 | Form-Builder SQLite + Access + audit scripts | tbl/schema names as cited | Batch is orthogonal to file workflows | D3.C1–C3 | — | **U#2** naming collision with “housekeeping” |
 | D4 | Plan author | Deliverables set pending/partial | Merge xref into `file-comp` | D4.C1–D4.C2 | Depends on files not all present in corpus | — |
@@ -195,7 +195,7 @@
 
 | Name | One-line definition | Anchors |
 |------|---------------------|---------|
-| R1 Session file hygiene | Enumerate session-touched files; PARA placement; approve before move/remove | D1.C1–C8 |
+| R1 Session file hygiene | Enumerate session-touched files; JDex placement; approve before move/remove | D1.C1–C8 |
 | R2 Automated repo housekeeping | delt-scan → pend-clnp → fldr-clnp; aggregate report | D5.C1, D9.C1–C3 |
 | R3 Pending deletion retention | Delete staged pending folders older than threshold days | D5.C2, D2.C2 (step 5 subset), D9.C2 |
 | R4 Empty folder cleanup | Recursive removal of empty directories | D5.C3, D9.C2 |
@@ -230,7 +230,7 @@
 
 | Id | Assumption | Depends on |
 |----|------------|------------|
-| A#1 | `para-ontology` available for Cursor housekeeping | D1.C2 |
+| A#1 | `jdex-ontology` available for Cursor housekeeping | D1.C2 |
 | A#2 | HTTP services at `host.docker.internal:5070` implement modules | D9.C1 |
 | A#3 | v3.1 snippet spec is authoritative for harvest enrich | D7.C1 |
 | A#4 | Legacy SpecStory procedure matches lost `kn.proc` file | D2, D0.C3 |
@@ -247,7 +247,7 @@
 
 ### 2) Authority topology
 
-- **R1:** User approval > PARA skill > workspace FS (D1 authority block).
+- **R1:** User approval > JDex skill > workspace FS (D1 authority block).
 - **R2–R4:** Workflow doc + n8n export + module HTTP contracts (D5, D9).
 - **R5–R6:** Workflow doc + grading module; user approval at routing (D6).
 - **R7–R8:** Workflow docs + on-disk library layout; user triage (D7–D8).
@@ -280,7 +280,7 @@ OOS — `metric_story: false`.
 |------|-----------|------------|
 | Wrong playbook | User says “housekeeping” without context | Apply U#2 disambiguation |
 | Silent hard delete | Missing user election | Revert to soft; re-prompt (D1) |
-| PARA unavailable | Skill error | Halt classification; no guessing (D1) |
+| JDex unavailable | Skill error | Halt classification; no guessing (D1) |
 | Broken n8n chain | HTTP non-200 | Abort run; do not assume cleanup done (D9) |
 | Snippet identity drift | Mixed slug/hash files | Halt bulk import until U#3 resolved |
 
