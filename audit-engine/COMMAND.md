@@ -14,7 +14,8 @@ description: >-
   confirmation), `@audit-engine workflow`, `@audit-engine code`, or
   `@audit-engine mixed`. Audits only — never modifies. The deliverable is an
   audit report plus a proposal-only remediation plan; execution is handed off
-  to a separate session.
+  to a separate session. Corrective fixes offered for operator approval MUST
+  pass §Solution Determinism Gate (verdict: PASS); see §Approval-facing universality.
 ---
 
 # Audit-Engine
@@ -623,16 +624,18 @@ audit_report:
     from the document's leading content (see §"Content-type detection").
     It never asks the user to declare, confirm, or override content type.
     `decision_trace.detection_path` records the classification path taken.
-12. **Solution Determinism Gate.** No proposed remediation may be
-    presented for review without a `verdict: PASS`
-    `determinism_certification` per §"Solution Determinism Gate". This
-    applies to per-finding `remediation` fields (Modes 1–4) and to
-    per-plan-item `change` fields (Mode 5). The gate is mechanical, not
-    judgmental — the 5-rule rubric is closed and rules MUST NOT be
-    softened to coerce a PASS. A remediation that bypasses the gate is
-    itself a finding against the auditor and triggers
-    `halt_reason: DETERMINISM_GATE_EXHAUSTED` after the bounded retry
-    budget defined in §"Solution Determinism Gate" > retry_protocol.
+12. **Solution Determinism Gate.** No corrective **solution** may be framed for
+    **operator approval, adoption, or pick-one choice** unless it satisfies
+    §"Solution Determinism Gate" > **Approval-facing universality**: attached
+    `determinism_certification` with `verdict: PASS` per §"Solution Determinism
+    Gate". This binds per-finding `remediation` (Modes 1–4),
+    `remediation_plan.items[].change` (Mode 5), and any other gated surface listed
+    in §Scope of application. Diagnostics without corrective prescription are exempt.
+    The gate is mechanical, not judgmental — the 5-rule rubric is closed and rules
+    MUST NOT be softened to coerce a PASS. Bypassing this rule is itself a finding
+    against the auditor and triggers `halt_reason: DETERMINISM_GATE_EXHAUSTED`
+    after the bounded retry budget in §"Solution Determinism Gate" >
+    retry_protocol (save forensic surfacing solely per that halt path).
 
 ---
 
@@ -788,9 +791,16 @@ command or its reference modules.
 
 ## Solution Determinism Gate
 
-Every proposed remediation MUST pass this gate before it can appear in any
-output presented to the user. The gate is mechanical — closed-shape
-certification, closed rubric, closed retry budget. No free judgment.
+Every corrective **solution** the operator could **approve**, **adopt**, or
+**pick among** (see §Approval-facing universality) MUST pass this gate with
+`verdict: PASS` **before** it is offered in that posture. Passing the gate is the
+audit-engine’s verification that — per the canonical question below — this is
+among the allowable presentations the **right** and **most deterministic**
+choice versus the enumerated rejected alternatives **for that solution surface**.
+Purely descriptive audit diagnostics (severity, scores, verbatim evidence,
+findings lacking a corrective field) remain outside “solution.” The gate is
+mechanical — closed-shape certification, closed rubric, closed retry budget.
+No free judgment.
 
 ### Canonical question (verbatim, locked)
 
@@ -808,14 +818,54 @@ The gate applies to:
 - `finding.remediation` — for every finding whose `remediation` field is
   non-empty, in **all modes** (Mode 1 through Mode 5).
 - `remediation_plan.items[].change` — for every plan item, in **Mode 5**.
+- Any corrective entry in **`routing.prompt_builder_queue` or
+  `routing.user_action_queue`** that prescribes concrete operator action beyond
+  "see executor session" abstraction — attach certification to the operative
+  directive using the same `determinism_certification` shape as for non-empty
+  remediations unless the queue item is informational-only (no concrete change).
 
-A remediation that bypasses the gate is itself a finding against the
-auditor (Anti-Drift §12).
+**Outside this gate:** `audit_report` narrative that does **not** pair with a
+non-empty corrective field; summaries of flaws; Approved **Intent** text at Mode
+5 Step M5-2 (`stated_intent`) describing what the artifact is for (unless that
+same text embeds a concrete fix recipe — forbidden; strip fix recipe to a gated
+plan item).
+
+A remediation or other covered solution surface that bypasses the gate is
+itself a finding against the auditor (Anti-Drift §12).
+
+### Approval-facing universality (all `@audit-engine` invocations)
+
+Whenever `@audit-engine` runs — **every** artifact type, dispatch path, Mode 1–5,
+single-domain **or** mixed composite — **MUST**:
+
+1. **Never** Ask the operator to approve, partially accept, or choose among a
+   **corrective remedy** unless that remedy carries an attached
+   **`determinism_certification`** with **`verdict: PASS`** conforming to the
+   canonical question (right + most deterministic among the enumerated
+   `alternatives_considered`).
+2. **Never** Frame uncertified or `verdict: FAIL` corrective text as a menu
+   (e.g. "Option A / Option B pick one"), a recommendation block, or a plan
+   line item slated for §Anti-Drift §7 execution handoff — even if softened
+   with "might" or "consider."
+3. **May** Provide multiple **distinct** remedy objects **each** gated to PASS —
+   multiplicity is permitted only when **each** candidate carries its **own**
+   independent certification PASS (not shared).
+
+**Interpretation.** "Verified **most correct** and **most deterministic**" in
+operator-visible approval flows **means**: `verdict: PASS` via this section’s
+rubric derived from the locked canonical question — not informal auditor prose
+claims of optimality unless backed by attached certification blobs.
+
+**Exception (forensic halt only — not approval commodities).**
+`halt_reason: DETERMINISM_GATE_EXHAUSTED` may surface verbatim failed authoring
+attempts per §Retry protocol `on_third_fail` exclusively for deadlock resolution /
+`user_override` — never as selectable uncertified "solutions."
 
 ### `determinism_certification` schema (closed-shape)
 
-Every covered remediation MUST carry a `determinism_certification` block
-with these fields and only these fields:
+Every covered corrective surface (including non-empty remediations and other
+gates listed under §Scope of application where certification is required)
+MUST carry a `determinism_certification` block with these fields and only these fields:
 
 ```yaml
 determinism_certification:
@@ -1818,6 +1868,11 @@ This procedure is fully deterministic.
 
 Deliver the merged artifact: `audit_report` + `iteration` +
 `remediation_plan` (plus `composite` block for mixed-content runs).
+
+**Invariant.** Every **`remediation_plan.items[]`** eligible for APPROVED /
+PARTIAL acceptance carries `determinism_certification.verdict: PASS`; see
+§Approval-facing universality. If any candidate item lacks PASS certification,
+truncate it from approval-facing presentation and re-run Step M5-8.5.
 
 User options:
 
