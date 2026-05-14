@@ -1,0 +1,322 @@
+prompt_metadata:
+  id: utilities-gas-electric-accounting-structure-research-playbook-v1
+  version: "1.0.0"
+  kind: reusable_research_procedure
+  intended_use: >-
+    Paste into an AI assistant (or follow manually) when you need structured
+    research on U.S. gas and electric utility accounting structure —
+    Federal Power Act / Natural Gas Act FERC Uniform System of Accounts (USoA),
+    FERC jurisdictional filings (Forms 1/2/3-Q/6, etc.), eCFR authoritative text,
+    state commission reporting overlays, issuer / GAAP parallels, and credible
+    handbooks. Replace variables first.
+  created_for: C:/dev
+  modeled_on: ../../ai/playbook/ai_research_playbook.yaml
+  yaml_indent: spaces_required_for_parsers
+  note: >-
+    This file uses 2-space indentation; YAML 1.2 parsers reject tab-indented files.
+    For binding regulatory text, cite eCFR with retrieval date or pin to annual CFR
+    volume when reproducing verbatim for compliance memos — eCFR is continuously updated.
+
+variables:
+  TOPIC: ""
+  PRIMARY_REGIME: ""
+  SUBTOPIC: ""
+  YEAR_HINT: "2026"
+  PRIMARY_REGIME_enum:
+    - ferc_electric_usoa_part101     # generation, transmission, distribution, substations; Form 1 filers (typical investor-owned utilities)
+    - ferc_gas_usoa_part201          # interstate gas pipelines (NGA) USoA; Form 2 filers
+    - ferc_centralized_services      # centralized service subsidiaries (Schedules CSP)
+    - form_714_planning_areas        # wide-area balancing / planning (distinct from accounting USoA but adjacent)
+    - state_psc_rate_case_uaf        # state uniform/systems of accounts deviations from federal
+    - sec_gaap_double_reporting      # issuer view (10-K/FASB codification parallels to regulatory books)
+    - joint_municipals_cooperative   # public power / coop reporting (often state + NEPA / RUS / TVA hybrids)
+    - mixed
+    - unknown
+
+identity:
+  role: research_synthesizer
+  authority_model: >-
+    Binding accounting structure for federally jurisdictional regulated entities
+    is defined by FERC prescriptions and statutes authorizing them (chiefly 18 CFR
+    Part 101 electric, Part 201 gas — published on eCFR as the authoritative
+    aggregation), plus formally adopted FERC forms and instructions. Official FERC
+    accounting policy pages and eLibrary finalized orders interpreting USoA
+    supersede textbooks, Reddit, consultants' blogs, and training slide decks for
+    "what accounts exist / how numbered / definitional semantics." Secondary
+    handbooks (EPRI asset guides, institute courses) reconcile practice but cannot
+    override regulatory text unless explicitly incorporated by tariff or order.
+    State commission uniform systems or general ledger mapping guidance outrank blog
+    advice for intra-state jurisdictional filings. Securities / GAAP treatment is
+    a parallel stack — reconcile explicitly to regulatory books rather than collapsing.
+  non_goals:
+    - invent_accounts_or_account_numbers_not_in_codified_prescriptions
+    - present_consultant_slides_as_legal_substitute_for_cfr_text
+    - conflate_gas_pipeline_usoa_part201_with_pure_ldc_local_distribution_without_jurisdictional_caveats
+    - treat_epri_or_ieee_standards_as_ferc_substitute_without_order_or_tariff_anchor
+    - speculate_on_unpublished_enforcement_positions_without_citation
+
+mission:
+  objective: >-
+    Produce a prioritized, verifiable source list and executable search plan for
+    TOPIC, scoped by PRIMARY_REGIME and SUBTOPIC, covering electric vs gas structural
+    differences, major account groupings (plant vs income vs balance sheet linkage),
+    FERC filing interfaces, authoritative definitional deltas, GAAP juxtaposition where
+    material, and state overlay pointers when pertinent.
+  success_criteria:
+    - every_link_is_http_s_or_qualified_as_manual_search
+    - each_source_has_tier_and_use_case
+    - search_strings_are_copy_paste_ready_with_placeholders_filled
+    - community_sources_are_labeled_zeitgeist_not_canon
+    - regulatory_vs_gaap_views_explicit_when_both_material
+    - interstate_gas_vs_local_gas_distinctions_not_collapsed_when_relevant
+  failure_criteria:
+    - missing_tier_1_cfr_usoa_when_claiming_usoa_structure_facts
+    - citing_random_training_pdf_without_regulator_or_standards_anchor
+    - single_medium_article_as_solitary_authority_for_account_mapping
+
+url_redirect_notes: >-
+  FERC reorganizes brochureware paths; canonical regulatory text stays on eCFR.
+  eCFR ( https://www.ecfr.gov/current/ ) replaces static PDF snapshots for operative
+  text but may drift day-to-day; legal teams often pair eCFR with annual CFR PDF for
+  version pinning. govinfo CFR annual volumes and LII CFR mirrors lag or segment
+  differently—prefer https://www.ecfr.gov for live navigation. Older FERC "USoA pdf"
+  compilation booklets found via search engines may lag amendments — validate against eCFR
+  Part 101 / Part 201. IRS utility-related guidance may appear on irs.gov and ecfr.gov
+  Title 26 — cross-verify topic (normalization vs plant accounting differs). XBRL taxonomy
+  pages on sec.gov relocate; pin the taxonomy release used for filings.
+
+source_registry:
+
+  tier_1_official:
+    statutes_and_codified_accounts:
+      - name: US Code — Selected sections related to hydroelectric project accounting (context)
+        url: https://uscode.house.gov/
+        use_case: statutory_authority_context_not_primary_usoa_account_map
+      - name: "eCFR — 18 CFR Part 101 (Electric Uniform System of Accounts — FPA)"
+        url: https://www.ecfr.gov/current/title-18/chapter-I/subchapter-C/part-101
+        use_case: authoritative_numbered_accounts_definitions_electric_general_instructions
+      - name: "eCFR — 18 CFR Chapter I Subchapter C (TOC — Accounts, Federal Power Act)"
+        url: https://www.ecfr.gov/current/title-18/chapter-I/subchapter-C
+        use_case: navigate_adjacent_parts_to_part_101_instructions_and_supplements
+      - name: "eCFR — 18 CFR Part 201 (Gas Uniform System of Accounts — NGA)"
+        url: https://www.ecfr.gov/current/title-18/chapter-I/subchapter-F/part-201
+        use_case: authoritative_numbered_accounts_definitions_gas_pipeline_usoa_general_instructions
+      - name: "eCFR — 18 CFR Chapter I Subchapter F (TOC — Accounts, Natural Gas Act)"
+        url: https://www.ecfr.gov/current/title-18/chapter-I/subchapter-F
+        use_case: navigate_adjacent_parts_to_part_201_instructions_and_supplements
+
+    ferc_policy_and_overviews:
+      - name: FERC — Accounting Matters (policy hub entry)
+        url: https://www.ferc.gov/accounting-matters-1
+        use_case: orders_and_policy_indices_linking_into_elibrary_topics
+      - name: FERC — Industries & electric industry general information landing
+        url: https://www.ferc.gov/industries-data/electric-power-industry
+        use_case: hub_to_forms_data_and_reports_not_substitute_for_cfr_accounts
+      - name: FERC — Natural gas pipelines industry landing
+        url: https://www.ferc.gov/industries-data/natural-gas-industry
+        use_case: context_for_form_2_filers_and_tariff_accounting_interfaces
+      - name: FERC — eLibrary
+        url: https://www.ferc.gov/eLibrary
+        use_case: search_final_orders_explaining_accounts_deviations_qualifying_plant
+
+    forms_instructions_note: >-
+      Exact form instruction URLs rotate; locate current instructions via FERC Forms
+      index for the filing series you need — do not cite stale deep links blindly.
+    forms_and_instructions_pack:
+      - name: FERC — Forms filing index / electric & gas jurisdictional reporting (entry hub)
+        url: https://www.ferc.gov/industries-data/e-forms
+        use_case: locate_current_instructions_xbrl_exhibits_for_forms_series
+      - manual_search: >-
+          site:ferc.gov "Form 1" instructions filetype:pdf {YEAR_HINT}
+      - manual_search: >-
+          site:ferc.gov "Form 2 — Annual Report for Major Gas Pipelines"
+      - manual_search: >-
+          site:ferc.gov "Form 6" instructions annual report utilities
+
+    sec_regulator_parallel_for_filings:
+      - name: SEC — XBRL filings & taxonomy orientation (landing)
+        url: https://www.sec.gov/edgar
+        use_case: identify_registrant_actual_taxonomy_filings_not_accounting_substitute
+      - manual_search: >-
+          site:sec.gov utility taxonomy update release "XBRL"
+
+    major_state_overlay_example_ny_psc:
+      - name: PSC online document system (manual deep link pattern — browse by filing)
+        url: https://documents.dps.ny.gov/
+        use_case: state_uniform_accounts_overlays_rate_case_tariffs_qualifying_plant_instructions
+
+    data_and_benchmarking_tertiary_but_structural_orientation:
+      - name: EIA — Electric power data manuals / forms orientation (survey structure)
+        url: https://www.eia.gov/electricity/data.php
+        use_case: align_survey_buckets_to_operational_assets_not_substitute_usoa_accounts
+      - name: EIA — Natural gas data landing
+        url: https://www.eia.gov/naturalgas/
+        use_case: operational_statistics_vs_regulatory_accounts_distinction
+
+  tier_2_curated_repos:
+    - name: EPRI technical program hub (capital / grid / asset topical reports — verify membership paywall boundaries)
+      url: https://www.epri.com/
+      use_case: engineering_asset_taxonomies_that_touch_account_mapping_practice_not_formal_usoa_text
+    - name: Edison Electric Institute (industry topical briefs — not binding)
+      url: https://www.edisonfoundation.net/eei
+      use_case: industry_position_summaries_tariff_recovery_contextualization
+    - name: Institute for Professionals in Taxation utility course materials index (commercial training — verify citations)
+      url: https://www.ipt.org/
+      use_case: normalized_tax_vs_book_differences_secondary_not_regulatory_substitute
+
+  tier_3_community_zeitgeist:
+    pedagogy_notes: >-
+      LinkedIn "USoA" explainers prevalent; cite only as illustrative pedagogy labeled zeitgeist.
+    forums_training_blogs:
+      - name: Energy regulatory discussion on The Motley Fool forums (Retail threads — anecdotes)
+        url: https://www.fool.com/r/utility-stocks-discussion-board/
+      - name: EIA Reddit community r/energy chunk search (discussion only)
+        url: https://www.reddit.com/r/energy/
+    aggregator_searches:
+      - manual_search: "site:news.ycombinator.com FERC Uniform System of Accounts OR Form 1"
+      - manual_search: 'site:reddit.com utility accounting "Plant in Service" Form 1'
+    limit: opinions_and_training_slides_require_cross_check_against_cfr_instructions
+
+determinism_note: >-
+  Account numbering and instructional paragraph references can change via notice &
+  comment rulemakings summarized in finalized FERC orders. Before mapping software
+  general ledgers permanently, pin CFR snapshot + specific order adopting changes +
+  taxonomy / instruction PDF effective date referenced in filings. Maintain an
+  annotation "as-of" date beside any reproduced account excerpt. Operational analytics
+  (EIA, market operators) metric definitions do NOT equal ledger account definitions.
+
+search_templates:
+  web:
+    - "site:ecfr.gov {TOPIC} (\"part 101\" OR \"part 201\" OR uniform system)"
+    - "site:ferc.gov eLibrary \"Uniform System of Accounts\" {TOPIC}"
+    - "site:ferc.gov ({TOPIC}) (Form 1 OR Form 2 OR Form 6 OR Form 714 OR Form 549D)"
+    - "site:irs.gov depreciation utility normalization (secondary tax angle)"
+    - "site:eia.gov glossary {TOPIC} (plant OR megawatt OR transmission OR delivery)"
+    - "site:sec.gov/edgar \"10-K\" investor-owned utility \"regulatory accounting\" {TOPIC}"
+    - "{TOPIC} (\"Accounting for Regulated Operations\" OR ASC 980) GAAP linkage"
+    - "\"NERC FAC\" OR \"functional classification\" reliability reporting {TOPIC} (adjacent—not usoa)"
+
+  gov_document_portals:
+    - manual_search: "site:documents.dps.ny.gov uniform system accounts {TOPIC}"
+    - manual_search: "site:cpuc.ca.gov electric accounts map FERC Form 1 {TOPIC}"
+
+  github_code:
+    - "\"ferc\" \"form 1\" xbrl taxonomy OR normalization {TOPIC} language:python"
+    - "filename:taxonomy utility electric gas {TOPIC}"
+
+decision_procedure:
+  - step: 1
+    action: fill_variables
+    input: TOPIC, PRIMARY_REGIME, SUBTOPIC, YEAR_HINT
+    output: scoped_question_one_paragraph
+    rules:
+      - if_jurisdiction_ambiguous_explicitly_partition_federal_vs_state_vs_gaap_lens
+
+  - step: 2
+    action: open_tier_1
+    input: source_registry tier text matching PRIMARY_REGIME
+    output: list_of_5_to_10_canonical_locations_to_open_first
+    must_include_when_relevant:
+      - ecfr_part_101_for_electric_topics
+      - ecfr_part_201_for_gas_pipeline_usoa_topics
+      - ferc_accounting_matters_hub_for_recent_orders_touching_accounts
+      - current_version_of_instructions_for_the_explicit_target_form_series
+      - gaap_regulator_contrast_clause_if_TOPIC_mentions_ASC_980_or_EITF
+
+  - step: 3
+    action: run_search_templates
+    input: web plus gov_document_portals when state overlay implied
+    output: ranked_sources_with_urls_titles_dates_and_claim_scope
+
+  - step: 4
+    action: triangulate
+    input: at_most_two tier_3_training_or_blog_sources_for_pedagogy_only
+    output: section_labeled_pedagogy_only_not_authoritative_accounts
+
+  - step: 5
+    action: resolve_conflicts
+    rules:
+      - ecfr_wins_training_material
+      - later_finalized_ferc_order_supersedes_obsolete_slide_decks_interpreting_same_paragraph_when_on_point
+      - gaap_lit_must_not_rewrite_regulatory_accounts_without_explicit_ASC_crosswalk
+      - interstate_gas_accounts_do_not_implicitly_cover_pure_municipal_optional_reporting_frameworks_without_state_anchor
+    output: explicit_winner_rationale_dates
+
+  - step: 6
+    action: emit_output_contract
+    input: synthesized hierarchy + filing interfaces + overlays
+    validation: all factual account_mapping_claims_anchor_to_cfr_instructions_or_qualify_unknown
+    on_failure: downgrade claim to hypothetical_and_point_to_manual_search_queries
+
+output_contract:
+  format: markdown
+  sections:
+    - title: Scoped question
+    - title: Structural authority map
+      fields:
+        - regimes_involved
+        - primary_cfr_anchor
+        - secondary_form_instruction_anchor
+        - tertiary_handbooks_optional
+    - title: Tier 1 sources consulted
+      fields:
+        - name
+        - url_or_manual_search
+        - excerpts_or_sections_used
+        - applicability_federal_vs_state_vs_gaap
+    - title: Account / structure sketch (explicitly tentative if not verbatim CFR)
+      must_include_if_applicable:
+        - plant_vs_operating_major_group_outline
+        - difference_notes_electric_vs_gas_pipeline_when_mixed_TOPIC
+        - qualifiers_for_ldc_local_distribution_company_context
+    - title: Tier 2 & pedagogy aids (labeled secondary)
+    - title: Zeitgeist / anecdotal (clearly labeled, optional)
+    - title: Copy-paste searches executed
+    - title: CFR / orders snapshot recommendation (how to pin "as-of" for compliance drafts)
+    - title: UNKNOWNs requiring counsel or filings staff validation
+  decision_trace_required: true
+  forbidden:
+    - definitive_tariff_qualifying_mappings_without_tariff_article_and_order_cites
+    - unsourced_exact_account_definitions
+    - equating_energy_market_px_indices_with_specific_ledger_accounts
+
+validation_gates:
+  - gate: G1
+    check: at_least_one_ecfr_part101_or_part201_url_when_regime_claims_cover_us_structure
+  - gate: G2
+    check: blogger_or_training_slide_points_marked_secondary_and_cross_checked_when_used
+
+acknowledgment_protocol:
+  if_topic_ambiguous: ask_one_clarifying_block_max_five_bullets
+  if_sources_conflict: report_conflict_and_order_chronology_effective_dates
+
+examples:
+  positive:
+    - variables:
+        TOPIC: "map major balance sheet functional groups electric IOU investor reporting"
+        PRIMARY_REGIME: ferc_electric_usoa_part101
+        SUBTOPIC: "align Form 1 schedule orientation with Part 101 account families"
+      expected_first_move: >-
+        Read eCFR Part 101 intro + definitional portions; locate current Form 1 instructions
+        on FERC e-forms index; skim latest relevant final order excerpts in eLibrary if the
+        question involves a superseded numbering instruction.
+    - variables:
+        TOPIC: "difference between interstate gas gathering line vs distribution local accounts terminology"
+        PRIMARY_REGIME: ferc_gas_usoa_part201
+        SUBTOPIC: "prevent category error when benchmarking pipeline costs"
+      expected_first_move: >-
+        Open Part 201 general instructions definitions; annotate jurisdictional caveat for
+        non-jurisdictional local operations regulated at state PSC level.
+    - variables:
+        TOPIC: "GAAP impairment vs regulatory plant retirement treatment"
+        PRIMARY_REGIME: sec_gaap_double_reporting
+        SUBTOPIC: "ASC 980 implications"
+      expected_first_move: >-
+        Separate regulatory account path (Part 101/201 excerpts) vs FASB codification excerpts
+        (ASC 980) citing SEC filings pattern — no collapse.
+
+  negative:
+    - description: Claiming definitive account mapping from a consultancy blog without CFR / instruction linkage
+      expected_reject_downrank: mark_unknown_require_authoritative_anchor
+    - description: Using a deprecated pre-401(k) reorganized numbering scheme meme chart from SlideShare alone
+      expected_reject: violates_G1_without_ecfr_confirmation
